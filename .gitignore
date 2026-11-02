@@ -1,0 +1,12 @@
+.deps/
+build_*/
+dist/
+test-runtime/
+upstream-template/
+tools/
+cmake/.CMakeBuildNumber
+*.lock.json
+.DS_Store
+installer/obj/
+installer/bin/
+release/

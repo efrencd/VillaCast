@@ -1,0 +1,15 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <PropertyGroup>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <Cultures Condition="'$(Cultures)' == ''">en-US</Cultures>
+    <OutputName>obs-mediamtx-$(PluginVersion)-windows-x64-$(Cultures)</OutputName>
+    <ProductName Condition="'$(ProductName)' == ''">OBS MediaMTX</ProductName>
+    <UpgradeCode Condition="'$(UpgradeCode)' == ''">33B271FD-9DBA-4696-A999-8150711E765A</UpgradeCode>
+    <ProductCode Condition="'$(ProductCode)' == ''">*</ProductCode>
+    <DefineConstants>PluginVersion=$(PluginVersion);PayloadDir=$(PayloadDir);ProductName=$(ProductName);UpgradeCode=$(UpgradeCode);ProductCode=$(ProductCode)</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="6.0.2" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="6.0.2" />
+  </ItemGroup>
+</Project>

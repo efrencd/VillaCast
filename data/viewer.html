@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="__LANG__">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OBS MediaMTX</title>
+<style>
+html,body{margin:0;width:100%;height:100%;background:#111;color:#fff;font:16px system-ui}
+video{width:100%;height:100%;object-fit:contain;display:block}
+#status{position:fixed;top:16px;left:16px;right:16px;pointer-events:none;text-align:center}
+#status span{display:inline-block;background:#151515dd;padding:9px 16px;border-radius:8px}
+</style>
+<video id="video" autoplay muted playsinline controls></video>
+<div id="status" role="status"></div>
+<script>
+(() => {
+  const tr = (es, en) => document.documentElement.lang === 'es' ? es : en;
+  const video = document.querySelector('#video');
+  const status = document.querySelector('#status');
+  const endpoint = new URL(location.href);
+  endpoint.port = __WEBRTC_PORT__;
+  endpoint.pathname = '/__STREAM_PATH__/whep';
+  endpoint.search = ''; endpoint.hash = '';
+  let pc = null, controller = null, resource = null, retry = null;
+  let generation = 0, lastFrames = -1, lastProgress = performance.now(), closing = false;
+  let connecting = false, connectedAt = 0;
+  const message = text => {
+    status.replaceChildren();
+    if (text) { const span=document.createElement('span'); span.textContent=text; status.append(span); }
+  };
+  const removeResource = url => {
+    if (url) fetch(url, {method:'DELETE',credentials:'omit',keepalive:true}).catch(()=>{});
+  };
+  const cleanup = () => {
+    ++generation;
+    if (controller) controller.abort(); controller=null;
+    if (pc) { pc.onconnectionstatechange=null; pc.ontrack=null; pc.close(); } pc=null;
+    removeResource(resource); resource=null;
+    connecting=false; lastFrames=-1;
+  };
+  const reconnect = text => {
+    if (closing || retry) return;
+    cleanup(); message(text || tr('Señal interrumpida. Reconectando…','Stream interrupted. Reconnecting…'));
+    retry=setTimeout(()=>{retry=null;connect();},1500);
+  };
+  async function connect() {
+    if (closing || connecting) return;
+    cleanup(); connecting=true;
+    const id=generation;
+    controller=new AbortController();
+    const requestController=controller;
+    const peer=new RTCPeerConnection(); pc=peer;
+    connectedAt=performance.now();
+    peer.addTransceiver('video',{direction:'recvonly'});
+    peer.addTransceiver('audio',{direction:'recvonly'});
+    const stream=new MediaStream();
+    peer.ontrack=event=>{
+      if(id!==generation)return;
+      stream.addTrack(event.track); video.srcObject=stream;
+      video.play().then(()=>message('')).catch(()=>message(tr('Pulsa reproducir para ver la señal.','Press play to watch the stream.')));
+      lastProgress=performance.now();
+    };
+    peer.onconnectionstatechange=()=>{
+      if(id!==generation)return;
+      if(['failed','closed','disconnected'].includes(peer.connectionState)) reconnect();
+      else if(peer.connectionState==='connected') { connecting=false;lastProgress=performance.now(); }
+    };
+    let timeout;
+    try {
+      timeout=setTimeout(()=>requestController.abort(),8000);
+      await peer.setLocalDescription(await peer.createOffer());
+      if(peer.iceGatheringState!=='complete') await new Promise(resolve=>{
+        const timer=setTimeout(done,1500);
+        function done(){clearTimeout(timer);peer.removeEventListener('icegatheringstatechange',changed);resolve();}
+        function changed(){if(peer.iceGatheringState==='complete')done();}
+        peer.addEventListener('icegatheringstatechange',changed);
+      });
+      if(id!==generation)return;
+      const response=await fetch(endpoint,{method:'POST',credentials:'omit',signal:requestController.signal,
+        headers:{'Content-Type':'application/sdp'},body:peer.localDescription.sdp});
+      if(!response.ok)throw new Error(response.status===401?tr('Acceso no autorizado. Revisa la red permitida en OBS.','Access denied. Check the allowed network in OBS.'):tr('Esperando a que OBS emita…','Waiting for OBS to start streaming…'));
+      const locationHeader=response.headers.get('Location');
+      const sessionUrl=locationHeader?new URL(locationHeader,endpoint):null;
+      const session=sessionUrl && sessionUrl.origin===endpoint.origin && sessionUrl.pathname.startsWith(endpoint.pathname+'/')?sessionUrl.href:null;
+      if(id!==generation){removeResource(session);return;}
+      resource=session;
+      await peer.setRemoteDescription({type:'answer',sdp:await response.text()});
+    } catch(error) {
+      if(id===generation)reconnect(error.name==='AbortError'?tr('Sin respuesta del servidor. Reconectando…','No response from the server. Reconnecting…'):error.message);
+    } finally { clearTimeout(timeout); }
+  }
+  video.addEventListener('playing',()=>message(''));
+  setInterval(()=>{
+    if(!pc || retry || closing)return;
+    const now=performance.now();
+    if(pc.connectionState!=='connected') { if(now-connectedAt>10000)reconnect(); return; }
+    const frames=video.getVideoPlaybackQuality?.().totalVideoFrames ?? video.currentTime;
+    if(frames!==lastFrames){lastFrames=frames;lastProgress=now;}
+    else if(now-lastProgress>5000 && (!video.paused || video.readyState<2)) reconnect();
+  },1000);
+  window.addEventListener('online',()=>reconnect());
+  window.addEventListener('pagehide',()=>{closing=true;clearTimeout(retry);cleanup();});
+  message(tr('Conectando…','Connecting…'));
+  connect();
+})();
+</script>
+</html>

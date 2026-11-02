@@ -1,0 +1,65 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package Name="$(var.ProductName)" Manufacturer="Efren C.D."
+           Version="$(var.PluginVersion)" Language="!(loc.Language)" Scope="perMachine" ProductCode="$(var.ProductCode)"
+           UpgradeCode="$(var.UpgradeCode)">
+    <MajorUpgrade DowngradeErrorMessage="!(loc.NewerVersion)" IgnoreLanguage="yes"
+                  Schedule="afterInstallInitialize" />
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+    <Property Id="OBS_INSTALL_DIR">
+      <RegistrySearch Id="FindOBS" Root="HKLM" Key="SOFTWARE\OBS Studio" Type="raw" Bitness="always64" />
+    </Property>
+    <Launch Condition="Installed OR OBS_INSTALL_DIR" Message="!(loc.OBSRequired)" />
+    <util:CloseApplication Id="CheckOBS" Target="obs64.exe" CloseMessage="no"
+                          RebootPrompt="no" Property="OBS_RUNNING" Timeout="1" />
+    <CustomAction Id="RequireOBSClosed" Error="!(loc.CloseOBS)" />
+    <InstallExecuteSequence>
+      <Custom Action="override Wix4CloseApplications_X64" Before="InstallValidate" Condition="1" />
+      <Custom Action="RequireOBSClosed" After="Wix4CloseApplications_X64" Condition="OBS_RUNNING" />
+    </InstallExecuteSequence>
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="OBS_DATA" Name="obs-studio">
+        <Directory Id="OBS_PLUGINS" Name="plugins">
+          <Directory Id="INSTALLFOLDER" Name="obs-mediamtx">
+            <Component Id="License" Guid="*" Bitness="always64">
+              <File Source="..\LICENSE" Name="COPYING.txt" KeyPath="yes" />
+            </Component>
+            <Directory Id="BIN" Name="bin">
+              <Directory Id="BIN64" Name="64bit">
+                <Component Id="PluginBinary" Guid="*" Bitness="always64">
+                  <File Id="PluginDll" Source="$(var.PayloadDir)\bin\64bit\obs-mediamtx.dll" KeyPath="yes" />
+                </Component>
+              </Directory>
+            </Directory>
+            <Directory Id="DATA" Name="data">
+              <Component Id="Viewer" Guid="*" Bitness="always64">
+                <File Source="$(var.PayloadDir)\data\viewer.html" KeyPath="yes" />
+              </Component>
+              <Directory Id="LOCALE" Name="locale">
+                <Component Id="Locale" Guid="*" Bitness="always64">
+                  <File Source="$(var.PayloadDir)\data\locale\en-US.ini" KeyPath="yes" />
+                </Component>
+                <Component Id="LocaleSpanish" Guid="*" Bitness="always64">
+                  <File Source="$(var.PayloadDir)\data\locale\es-ES.ini" KeyPath="yes" />
+                </Component>
+              </Directory>
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <Feature Id="Plugin" Title="OBS MediaMTX" Level="1">
+      <ComponentRef Id="PluginBinary" />
+      <ComponentRef Id="Viewer" />
+      <ComponentRef Id="Locale" />
+      <ComponentRef Id="LocaleSpanish" />
+      <ComponentRef Id="License" />
+    </Feature>
+    <ui:WixUI Id="WixUI_Minimal" />
+    <UIRef Id="WixUI_ErrorProgressText" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="!(loc.Finished)" />
+  </Package>
+</Wix>

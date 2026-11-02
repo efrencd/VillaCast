@@ -1,0 +1,7 @@
+<WixLocalization xmlns="http://wixtoolset.org/schemas/v4/wxl" Culture="en-US">
+  <String Id="Language" Value="1033" />
+  <String Id="NewerVersion" Value="A newer version of OBS MediaMTX is already installed." />
+  <String Id="OBSRequired" Value="Install 64-bit OBS Studio before installing this plugin. For portable OBS, use the ZIP package." />
+  <String Id="CloseOBS" Value="Close OBS Studio and run the installer again. OBS will not be closed automatically." />
+  <String Id="Finished" Value="Open OBS and enable Docks > MediaMTX · WebRTC. Install MediaMTX separately from the plugin panel. Settings are preserved when updating or uninstalling." />
+</WixLocalization>
