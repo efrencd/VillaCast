@@ -77,6 +77,13 @@ if(BUILD_TESTING)
   target_link_libraries(i18n-tests PRIVATE Qt6::Core)
   target_compile_features(i18n-tests PRIVATE cxx_std_17)
   add_test(NAME i18n COMMAND i18n-tests "${CMAKE_CURRENT_SOURCE_DIR}/data/locale")
+  add_executable(viewer-tests tests/viewer-tests.cpp src/viewer.cpp src/i18n.cpp)
+  target_link_libraries(viewer-tests PRIVATE Qt6::Core Qt6::Network)
+  target_compile_features(viewer-tests PRIVATE cxx_std_17)
+  add_test(
+    NAME viewer
+    COMMAND viewer-tests "${CMAKE_CURRENT_SOURCE_DIR}/data/viewer.html" "${CMAKE_CURRENT_SOURCE_DIR}/data/locale"
+  )
   if(WIN32)
     target_link_libraries(mdns-tests PRIVATE ws2_32)
     set_tests_properties(
@@ -84,5 +91,9 @@ if(BUILD_TESTING)
       PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
     )
     set_tests_properties(i18n PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+    set_tests_properties(
+      viewer
+      PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
+    )
   endif()
 endif()

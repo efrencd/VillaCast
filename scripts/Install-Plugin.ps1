@@ -17,4 +17,4 @@ New-Item -ItemType Directory -Path $pluginDestination -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PluginSource 'bin') -Destination $pluginDestination -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $PluginSource 'data') -Destination $pluginDestination -Recurse -Force
 Write-Host "Instalado en $pluginDestination"
-Write-Host 'Abre OBS y activa Paneles > MediaMTX · WebRTC. El servidor se inicia manualmente desde el panel.'
+Write-Host 'Abre OBS y activa Paneles > VillaCast. El servidor se inicia manualmente desde el panel.'

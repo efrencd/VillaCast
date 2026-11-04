@@ -37,9 +37,9 @@
     }
   },
   "name": "obs-mediamtx",
-  "displayName": "OBS MediaMTX",
-  "version": "0.6.1",
+  "displayName": "VillaCast",
+  "version": "0.8.0",
   "author": "Efren C.D.",
-  "website": "https://github.com/efrencd/OBS-MediaMTX",
+  "website": "https://github.com/efrencd/VillaCast",
   "email": ""
 }

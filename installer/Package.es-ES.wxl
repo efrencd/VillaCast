@@ -1,7 +1,7 @@
 <WixLocalization xmlns="http://wixtoolset.org/schemas/v4/wxl" Culture="es-ES">
   <String Id="Language" Value="3082" />
-  <String Id="NewerVersion" Value="Ya hay una versión más reciente de OBS MediaMTX instalada." />
+  <String Id="NewerVersion" Value="Ya hay una versión más reciente de VillaCast instalada." />
   <String Id="OBSRequired" Value="Instala OBS Studio de 64 bits antes de instalar este plugin. Para OBS portable utiliza el paquete ZIP." />
   <String Id="CloseOBS" Value="Cierra OBS Studio y vuelve a ejecutar el instalador. No se cerrará OBS automáticamente." />
-  <String Id="Finished" Value="Abre OBS y activa Paneles > MediaMTX · WebRTC. MediaMTX se instala por separado desde el panel. Los ajustes se conservan al actualizar y desinstalar." />
+  <String Id="Finished" Value="Abre OBS y activa Paneles > VillaCast. MediaMTX se instala por separado desde el panel. Los ajustes se conservan al actualizar y desinstalar." />
 </WixLocalization>

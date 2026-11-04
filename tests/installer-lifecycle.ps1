@@ -21,16 +21,16 @@ try {
     foreach ($testVersion in '1.0.0','1.0.1') {
         $out = Join-Path $testRoot $testVersion
         $culture = if ($testVersion -eq '1.0.0') { 'en-US' } else { 'es-ES' }
-        & $MSBuildPath installer/OBS-MediaMTX.wixproj /restore /t:Rebuild /nologo /v:minimal `
+        & $MSBuildPath installer/VillaCast.wixproj /restore /t:Rebuild /nologo /v:minimal `
             /p:Configuration=Release "/p:PluginVersion=$testVersion" `
             "/p:Cultures=$culture" `
-            /p:ProductName=OBS-MediaMTX-Installer-Test `
+            /p:ProductName=VillaCast-Installer-Test `
             /p:UpgradeCode=688CB4C7-E95B-4C5A-9B82-7E1328101F28 `
             "/p:PayloadDir=$payload" "/p:OutputPath=$out\"
         if ($LASTEXITCODE) { throw 'Falló la compilación de prueba.' }
     }
-    $first = Join-Path $testRoot '1.0.0/en-US/obs-mediamtx-1.0.0-windows-x64-en-US.msi'
-    $second = Join-Path $testRoot '1.0.1/es-ES/obs-mediamtx-1.0.1-windows-x64-es-ES.msi'
+    $first = Join-Path $testRoot '1.0.0/en-US/VillaCast-1.0.0-windows-x64-en-US.msi'
+    $second = Join-Path $testRoot '1.0.1/es-ES/VillaCast-1.0.1-windows-x64-es-ES.msi'
     $target = 'INSTALLFOLDER="'+$installRoot+'"'
     Invoke-Msi @('/i',('"'+$first+'"'),$target) 'install'
     $installedDll = Join-Path $installRoot 'bin/64bit/obs-mediamtx.dll'

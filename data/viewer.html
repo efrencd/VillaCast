@@ -2,105 +2,205 @@
 <html lang="__LANG__">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OBS MediaMTX</title>
+<title>VillaCast</title>
 <style>
-html,body{margin:0;width:100%;height:100%;background:#111;color:#fff;font:16px system-ui}
+html,body{margin:0;width:100%;height:100%;background:#111;color:#fff;font:16px system-ui;overflow:hidden}
 video{width:100%;height:100%;object-fit:contain;display:block}
 #status{position:fixed;top:16px;left:16px;right:16px;pointer-events:none;text-align:center}
-#status span{display:inline-block;background:#151515dd;padding:9px 16px;border-radius:8px}
+#status span{display:inline-block;background:#151515e8;padding:9px 16px;border-radius:8px}
+#controls{position:fixed;bottom:12px;left:12px;right:12px;display:flex;gap:10px;align-items:center;padding:10px;background:#151515dd;border-radius:10px;transition:opacity .2s,transform .2s}
+#controls.idle{opacity:0;transform:translateY(8px);pointer-events:none}
+button{font:inherit;width:44px;height:44px;padding:10px;border-radius:6px;border:1px solid #777;background:#222;color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+#volume{min-width:70px;max-width:220px;flex:1}
+@media(prefers-reduced-motion:reduce){#controls{transition:none}}
+button:focus-visible,input:focus-visible{outline:3px solid #94bfff}
+#fullscreen{margin-left:auto}#gesture,#retry{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%)}
+[hidden]{display:none!important}
 </style>
-<video id="video" autoplay muted playsinline controls></video>
-<div id="status" role="status"></div>
+<video id="video" playsinline></video>
+<div id="status" role="status" aria-live="polite"></div>
+<button id="gesture" hidden></button><button id="retry" hidden></button>
+<div id="controls" hidden><button id="play"></button><button id="sound"></button><input id="volume" type="range" min="0" max="100"><button id="fullscreen"></button></div>
 <script>
 (() => {
-  const tr = (es, en) => document.documentElement.lang === 'es' ? es : en;
-  const video = document.querySelector('#video');
-  const status = document.querySelector('#status');
-  const endpoint = new URL(location.href);
-  endpoint.port = __WEBRTC_PORT__;
-  endpoint.pathname = '/__STREAM_PATH__/whep';
-  endpoint.search = ''; endpoint.hash = '';
-  let pc = null, controller = null, resource = null, retry = null;
-  let generation = 0, lastFrames = -1, lastProgress = performance.now(), closing = false;
-  let connecting = false, connectedAt = 0;
-  const message = text => {
-    status.replaceChildren();
-    if (text) { const span=document.createElement('span'); span.textContent=text; status.append(span); }
+  const cfg = __PLAYER_OPTIONS__;
+  const tr = (es,en) => document.documentElement.lang === 'es' ? es : en;
+  const video=document.querySelector('#video'),status=document.querySelector('#status');
+  const controls=document.querySelector('#controls'),gesture=document.querySelector('#gesture'),retryButton=document.querySelector('#retry');
+  const sound=document.querySelector('#sound'),volume=document.querySelector('#volume'),play=document.querySelector('#play'),fullscreen=document.querySelector('#fullscreen');
+  document.title=cfg.title || 'VillaCast';
+  document.body.style.backgroundColor=cfg.background || '#111111';
+  video.style.objectFit=cfg.fit==='cover'?'cover':'contain';
+  video.controls=false;video.autoplay=false;video.muted=!cfg.sound;
+  video.volume=Math.max(0,Math.min(100,cfg.volume ?? 100))/100;
+  video.disablePictureInPicture=!!cfg.preventPause;video.disableRemotePlayback=!!cfg.preventPause;
+  controls.hidden=!cfg.controls;play.hidden=!!cfg.preventPause;
+  volume.value=String(video.volume*100);volume.setAttribute('aria-label',tr('Volumen','Volume'));
+  const icons={
+    play:'<path d="m8 5 11 7-11 7z"/>',pause:'<path d="M8 5v14M16 5v14"/>',
+    sound:'<path d="M11 5 6 9H3v6h3l5 4zM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/>',
+    muted:'<path d="M11 5 6 9H3v6h3l5 4zM16 9l5 6M21 9l-5 6"/>',
+    fullscreen:'<path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/>',
+    restore:'<path d="M3 8h5V3M21 8h-5V3M8 21v-5H3M16 21v-5h5"/>',
+    retry:'<path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5"/>'
   };
-  const removeResource = url => {
-    if (url) fetch(url, {method:'DELETE',credentials:'omit',keepalive:true}).catch(()=>{});
+  const setIcon=(button,icon,label)=>{button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+icons[icon]+'</svg>';button.setAttribute('aria-label',label);button.title=label;};
+  const syncFullscreen=()=>setIcon(fullscreen,document.fullscreenElement?'restore':'fullscreen',document.fullscreenElement?tr('Salir de pantalla completa','Exit fullscreen'):tr('Pantalla completa','Fullscreen'));
+  setIcon(retryButton,'retry',tr('Reconectar','Reconnect'));syncFullscreen();
+  let hideControlsTimer=null,draggingControl=false,keyboardControls=false;
+  const armHideControls=()=>{clearTimeout(hideControlsTimer);if(!cfg.controls)return;hideControlsTimer=setTimeout(()=>{
+    if(draggingControl||(matchMedia('(hover:hover) and (pointer:fine)').matches&&controls.matches(':hover'))||(keyboardControls&&controls.contains(document.activeElement))){armHideControls();return;}
+    controls.classList.add('idle');controls.inert=true;controls.setAttribute('aria-hidden','true');
+  },3000);};
+  const revealControls=()=>{if(!cfg.controls)return;controls.classList.remove('idle');controls.inert=false;controls.setAttribute('aria-hidden','false');armHideControls();};
+  document.addEventListener('pointermove',revealControls);
+  document.addEventListener('pointerdown',()=>{keyboardControls=false;revealControls();});
+  document.addEventListener('keydown',event=>{if(event.key==='Tab'||controls.contains(document.activeElement))keyboardControls=true;revealControls();});
+  controls.addEventListener('pointerdown',()=>{draggingControl=true;});
+  window.addEventListener('pointerup',()=>{draggingControl=false;armHideControls();});
+  window.addEventListener('pointercancel',()=>{draggingControl=false;armHideControls();});
+  controls.addEventListener('pointerleave',armHideControls);
+  controls.addEventListener('focusin',revealControls);
+  controls.addEventListener('focusout',event=>{if(!controls.contains(event.relatedTarget))keyboardControls=false;armHideControls();});
+  const endpoint=new URL(location.href);endpoint.port=__WEBRTC_PORT__;endpoint.pathname='/__STREAM_PATH__/whep';endpoint.search='';endpoint.hash='';
+  let pc=null,controller=null,resource=null,retry=null,generation=0,closing=false,connecting=false,connectedAt=0;
+  let lastFrames=-1,lastProgress=performance.now(),hasStarted=false,playPending=false,resumeTimer=null,needsSoundGesture=false;
+  let clientId=null,reportToken=null,registration=null,reporting=false,previousStats=null;
+  const message=text=>{status.replaceChildren();if(text&&cfg.showStatus){const span=document.createElement('span');span.textContent=text;status.append(span);}};
+  const syncControls=()=>{setIcon(sound,video.muted||video.volume===0?'muted':'sound',video.muted?tr('Activar sonido','Enable sound'):tr('Silenciar','Mute'));setIcon(play,video.paused?'play':'pause',video.paused?tr('Reproducir','Play'):tr('Pausar','Pause'));if(!video.muted){needsSoundGesture=false;if(gesture.dataset.intent==='sound')gesture.hidden=true;}};
+  const askGesture=(text,intent)=>{setIcon(gesture,intent==='sound'?'muted':'play',text);gesture.dataset.intent=intent;gesture.hidden=false;};
+  async function playVideo(){
+    if(playPending||closing||!video.srcObject)return;
+    playPending=true;
+    try{await video.play();hasStarted=true;message('');if(needsSoundGesture&&video.muted)askGesture(tr('Activar sonido','Enable sound'),'sound');else gesture.hidden=true;}
+    catch(error){
+      if(!video.muted){
+        needsSoundGesture=true;video.muted=true;
+        try{await video.play();hasStarted=true;askGesture(tr('Activar sonido','Enable sound'),'sound');}
+        catch{askGesture(tr('Reproducir','Play'),'play');}
+      }else askGesture(tr('Reproducir','Play'),'play');
+    }finally{playPending=false;syncControls();}
+  }
+  gesture.onclick=()=>{hasStarted=true;if(gesture.dataset.intent==='sound'||cfg.sound)video.muted=false;playVideo();};
+  sound.onclick=()=>{video.muted=!video.muted;syncControls();if(video.paused){hasStarted=true;playVideo();}};
+  volume.oninput=()=>{needsSoundGesture=false;gesture.hidden=true;video.volume=Number(volume.value)/100;video.muted=video.volume===0;syncControls();};
+  play.onclick=()=>{if(video.paused){hasStarted=true;playVideo();}else if(!cfg.preventPause)video.pause();};
+  let fullscreenPending=false;
+  const toggleFullscreen=async()=>{if(fullscreenPending)return;fullscreenPending=true;try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{}finally{fullscreenPending=false;syncFullscreen();revealControls();}};
+  fullscreen.onclick=toggleFullscreen;
+  video.addEventListener('dblclick',event=>{event.preventDefault();toggleFullscreen();});
+  document.addEventListener('fullscreenchange',()=>{syncFullscreen();revealControls();});
+  video.addEventListener('playing',()=>{hasStarted=true;message('');syncControls();});
+  video.addEventListener('volumechange',syncControls);
+  const resumeLive=()=>{if(cfg.preventPause&&hasStarted&&pc?.connectionState==='connected'&&!closing&&!resumeTimer){resumeTimer=setTimeout(()=>{resumeTimer=null;playVideo();},250);}};
+  video.addEventListener('pause',()=>{syncControls();resumeLive();});
+  video.addEventListener('contextmenu',event=>{if(cfg.preventPause)event.preventDefault();});
+  document.addEventListener('keydown',event=>{if(!['INPUT','BUTTON','TEXTAREA','SELECT'].includes(event.target.tagName)&&!event.target.isContentEditable&&(event.code==='Space'||event.key.toLowerCase()==='k')){event.preventDefault();if(!cfg.preventPause)play.click();else resumeLive();}});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)resumeLive();});
+  try{if(navigator.mediaSession){navigator.mediaSession.setActionHandler('pause',()=>{if(cfg.preventPause)resumeLive();else video.pause();});navigator.mediaSession.setActionHandler('play',()=>{hasStarted=true;playVideo();});}}catch{}
+  const removeResource=url=>{if(url)fetch(url,{method:'DELETE',credentials:'omit',keepalive:true}).catch(()=>{});};
+  const cleanup=()=>{
+    ++generation;if(controller)controller.abort();controller=null;
+    if(pc){pc.onconnectionstatechange=null;pc.ontrack=null;pc.close();}pc=null;
+    removeResource(resource);resource=null;connecting=false;lastFrames=-1;previousStats=null;
   };
-  const cleanup = () => {
-    ++generation;
-    if (controller) controller.abort(); controller=null;
-    if (pc) { pc.onconnectionstatechange=null; pc.ontrack=null; pc.close(); } pc=null;
-    removeResource(resource); resource=null;
-    connecting=false; lastFrames=-1;
+  const reconnect=text=>{
+    if(closing||retry)return;
+    cleanup();message(text||(cfg.autoReconnect?tr('Señal interrumpida. Reconectando…','Stream interrupted. Reconnecting…'):tr('Señal interrumpida. Pulsa Reconectar.','Stream interrupted. Press Reconnect.')));
+    retryButton.hidden=!!cfg.autoReconnect;
+    if(cfg.autoReconnect)retry=setTimeout(()=>{retry=null;connect();},1500);
   };
-  const reconnect = text => {
-    if (closing || retry) return;
-    cleanup(); message(text || tr('Señal interrumpida. Reconectando…','Stream interrupted. Reconnecting…'));
-    retry=setTimeout(()=>{retry=null;connect();},1500);
-  };
-  async function connect() {
-    if (closing || connecting) return;
-    cleanup(); connecting=true;
-    const id=generation;
-    controller=new AbortController();
-    const requestController=controller;
-    const peer=new RTCPeerConnection(); pc=peer;
-    connectedAt=performance.now();
-    peer.addTransceiver('video',{direction:'recvonly'});
-    peer.addTransceiver('audio',{direction:'recvonly'});
+  retryButton.onclick=()=>{clearTimeout(retry);retry=null;connect();};
+  async function register(){
+    if(!cfg.monitor||closing||clientId)return;
+    if(registration)return registration;
+    registration=(async()=>{
+      const abort=new AbortController(),timeout=setTimeout(()=>abort.abort(),2500);
+      try{const response=await fetch('/telemetry/register',{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json'},body:'{}',signal:abort.signal});
+        if(response.ok){const data=await response.json();if(typeof data.id==='string'&&typeof data.token==='string'){clientId=data.id;reportToken=data.token;}}
+      }catch{}finally{clearTimeout(timeout);}
+    })();
+    try{await registration;}finally{registration=null;}
+  }
+  async function connect(){
+    if(closing||connecting)return;
+    cleanup();connecting=true;retryButton.hidden=true;
+    const id=generation;await register();if(id!==generation||closing)return;
+    controller=new AbortController();const requestController=controller;
+    const peer=new RTCPeerConnection();pc=peer;connectedAt=performance.now();
+    peer.addTransceiver('video',{direction:'recvonly'});peer.addTransceiver('audio',{direction:'recvonly'});
     const stream=new MediaStream();
-    peer.ontrack=event=>{
-      if(id!==generation)return;
-      stream.addTrack(event.track); video.srcObject=stream;
-      video.play().then(()=>message('')).catch(()=>message(tr('Pulsa reproducir para ver la señal.','Press play to watch the stream.')));
-      lastProgress=performance.now();
-    };
-    peer.onconnectionstatechange=()=>{
-      if(id!==generation)return;
-      if(['failed','closed','disconnected'].includes(peer.connectionState)) reconnect();
-      else if(peer.connectionState==='connected') { connecting=false;lastProgress=performance.now(); }
-    };
+    peer.ontrack=event=>{if(id!==generation)return;stream.addTrack(event.track);if(video.srcObject!==stream)video.srcObject=stream;
+      if(cfg.autoplay||hasStarted)playVideo();else askGesture(tr('Reproducir','Play'),'play');lastProgress=performance.now();};
+    peer.onconnectionstatechange=()=>{if(id!==generation)return;
+      if(['failed','closed','disconnected'].includes(peer.connectionState))reconnect();
+      else if(peer.connectionState==='connected'){connecting=false;lastProgress=performance.now();}};
     let timeout;
-    try {
+    try{
       timeout=setTimeout(()=>requestController.abort(),8000);
       await peer.setLocalDescription(await peer.createOffer());
-      if(peer.iceGatheringState!=='complete') await new Promise(resolve=>{
-        const timer=setTimeout(done,1500);
-        function done(){clearTimeout(timer);peer.removeEventListener('icegatheringstatechange',changed);resolve();}
-        function changed(){if(peer.iceGatheringState==='complete')done();}
-        peer.addEventListener('icegatheringstatechange',changed);
+      if(peer.iceGatheringState!=='complete')await new Promise(resolve=>{
+        const timer=setTimeout(done,1500);function done(){clearTimeout(timer);peer.removeEventListener('icegatheringstatechange',changed);resolve();}
+        function changed(){if(peer.iceGatheringState==='complete')done();}peer.addEventListener('icegatheringstatechange',changed);
       });
       if(id!==generation)return;
-      const response=await fetch(endpoint,{method:'POST',credentials:'omit',signal:requestController.signal,
-        headers:{'Content-Type':'application/sdp'},body:peer.localDescription.sdp});
+      const target=new URL(endpoint);if(clientId)target.searchParams.set('obsClient',clientId);
+      const response=await fetch(target,{method:'POST',credentials:'omit',signal:requestController.signal,headers:{'Content-Type':'application/sdp'},body:peer.localDescription.sdp});
       if(!response.ok)throw new Error(response.status===401?tr('Acceso no autorizado. Revisa la red permitida en OBS.','Access denied. Check the allowed network in OBS.'):tr('Esperando a que OBS emita…','Waiting for OBS to start streaming…'));
-      const locationHeader=response.headers.get('Location');
-      const sessionUrl=locationHeader?new URL(locationHeader,endpoint):null;
-      const session=sessionUrl && sessionUrl.origin===endpoint.origin && sessionUrl.pathname.startsWith(endpoint.pathname+'/')?sessionUrl.href:null;
-      if(id!==generation){removeResource(session);return;}
-      resource=session;
+      const header=response.headers.get('Location'),url=header?new URL(header,target):null;
+      const session=url&&url.origin===endpoint.origin&&url.pathname.startsWith(endpoint.pathname+'/')?url.href:null;
+      if(id!==generation){removeResource(session);return;}resource=session;
       await peer.setRemoteDescription({type:'answer',sdp:await response.text()});
-    } catch(error) {
-      if(id===generation)reconnect(error.name==='AbortError'?tr('Sin respuesta del servidor. Reconectando…','No response from the server. Reconnecting…'):error.message);
-    } finally { clearTimeout(timeout); }
+    }catch(error){if(id===generation)reconnect(error.name==='AbortError'?tr('Sin respuesta del servidor. Reconectando…','No response from the server. Reconnecting…'):error.message);}
+    finally{clearTimeout(timeout);}
   }
-  video.addEventListener('playing',()=>message(''));
+  async function report(){
+    if(!cfg.monitor||reporting||closing)return;reporting=true;
+    const abort=new AbortController(),timeout=setTimeout(()=>abort.abort(),2500);
+    try{
+      await register();if(!clientId)return;
+      const sample={id:clientId,token:reportToken,state:pc?.connectionState||'disconnected'};
+      if(pc?.connectionState==='connected')sample.state=video.paused?'paused':'playing';
+      if(video.videoWidth>0){sample.width=video.videoWidth;sample.height=video.videoHeight;}
+      if(pc){const peer=pc,stats=await peer.getStats();if(peer!==pc)return;
+        stats.forEach(s=>{
+          if(s.type==='inbound-rtp'&&(s.kind||s.mediaType)==='video'){
+            const now={id:s.id,t:s.timestamp,bytes:s.bytesReceived,received:s.packetsReceived,lost:s.packetsLost,frames:s.framesDecoded};
+            if(previousStats&&previousStats.id===now.id){const dt=(now.t-previousStats.t)/1000;
+              if(dt>0&&now.bytes>=previousStats.bytes){sample.bitrate=(now.bytes-previousStats.bytes)*8/dt/1000;
+                if(Number.isFinite(now.frames)&&now.frames>=previousStats.frames)sample.fps=(now.frames-previousStats.frames)/dt;
+                const received=now.received-previousStats.received,lost=Math.max(0,now.lost-previousStats.lost);
+                if(received>=0&&received+lost>0)sample.loss=100*lost/(received+lost);
+              }
+            }
+            if(Number.isFinite(s.framesPerSecond))sample.fps=s.framesPerSecond;
+            if(Number.isFinite(s.jitter))sample.jitter=s.jitter*1000;
+            if(Number.isFinite(s.framesDropped))sample.dropped=s.framesDropped;
+            previousStats=now;
+          }
+          if(s.type==='candidate-pair'&&s.state==='succeeded'&&(s.nominated||s.selected)&&Number.isFinite(s.currentRoundTripTime))sample.rtt=s.currentRoundTripTime*1000;
+        });
+      }
+      const response=await fetch('/telemetry',{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json'},body:JSON.stringify(sample),signal:abort.signal});
+      if(response.status===401){clientId=null;reportToken=null;}
+    }catch{}finally{clearTimeout(timeout);reporting=false;}
+  }
+  const reportTimer=cfg.monitor?setInterval(report,Math.max(1,cfg.statsInterval||2)*1000):null;
   setInterval(()=>{
-    if(!pc || retry || closing)return;
-    const now=performance.now();
-    if(pc.connectionState!=='connected') { if(now-connectedAt>10000)reconnect(); return; }
-    const frames=video.getVideoPlaybackQuality?.().totalVideoFrames ?? video.currentTime;
+    if(!pc||retry||closing)return;const now=performance.now();
+    if(pc.connectionState!=='connected'){if(now-connectedAt>10000)reconnect();return;}
+    const frames=video.getVideoPlaybackQuality?.().totalVideoFrames??video.currentTime;
     if(frames!==lastFrames){lastFrames=frames;lastProgress=now;}
-    else if(now-lastProgress>5000 && (!video.paused || video.readyState<2)) reconnect();
+    else if((cfg.autoplay||hasStarted)&&now-lastProgress>5000&&(!video.paused||video.readyState<2))reconnect();
   },1000);
-  window.addEventListener('online',()=>reconnect());
-  window.addEventListener('pagehide',()=>{closing=true;clearTimeout(retry);cleanup();});
-  message(tr('Conectando…','Connecting…'));
-  connect();
+  window.addEventListener('online',()=>{if(cfg.autoReconnect)reconnect();});
+  window.addEventListener('pagehide',()=>{
+    closing=true;clearTimeout(retry);clearTimeout(resumeTimer);clearTimeout(hideControlsTimer);clearInterval(reportTimer);
+    if(clientId)fetch('/telemetry',{method:'POST',credentials:'omit',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({id:clientId,token:reportToken,closed:true})}).catch(()=>{});
+    cleanup();
+  });
+  syncControls();revealControls();message(tr('Conectando…','Connecting…'));connect();
 })();
 </script>
 </html>

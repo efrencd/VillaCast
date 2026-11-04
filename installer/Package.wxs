@@ -23,6 +23,24 @@
       <Directory Id="OBS_DATA" Name="obs-studio">
         <Directory Id="OBS_PLUGINS" Name="plugins">
           <Directory Id="INSTALLFOLDER" Name="obs-mediamtx">
+            <!-- Keep the install folder and UpgradeCode for upgrades from OBS MediaMTX. -->
+            <Directory Id="DOCS" Name="docs">
+              <Component Id="ManualEnglish" Guid="*" Bitness="always64">
+                <File Source="$(var.PayloadDir)\..\docs\MANUAL.en.md" KeyPath="yes" />
+              </Component>
+              <Component Id="ManualSpanish" Guid="*" Bitness="always64">
+                <File Source="$(var.PayloadDir)\..\docs\MANUAL.es.md" KeyPath="yes" />
+              </Component>
+            </Directory>
+            <Component Id="ReadmeEnglish" Guid="*" Bitness="always64">
+              <File Source="$(var.PayloadDir)\..\README.md" KeyPath="yes" />
+            </Component>
+            <Component Id="ReadmeSpanish" Guid="*" Bitness="always64">
+              <File Source="$(var.PayloadDir)\..\README.es.md" KeyPath="yes" />
+            </Component>
+            <Component Id="Validation" Guid="*" Bitness="always64">
+              <File Source="$(var.PayloadDir)\..\VALIDATION.md" KeyPath="yes" />
+            </Component>
             <Component Id="License" Guid="*" Bitness="always64">
               <File Source="..\LICENSE" Name="COPYING.txt" KeyPath="yes" />
             </Component>
@@ -50,7 +68,12 @@
         </Directory>
       </Directory>
     </StandardDirectory>
-    <Feature Id="Plugin" Title="OBS MediaMTX" Level="1">
+    <Feature Id="Plugin" Title="VillaCast" Level="1">
+      <ComponentRef Id="ManualEnglish" />
+      <ComponentRef Id="ManualSpanish" />
+      <ComponentRef Id="ReadmeEnglish" />
+      <ComponentRef Id="ReadmeSpanish" />
+      <ComponentRef Id="Validation" />
       <ComponentRef Id="PluginBinary" />
       <ComponentRef Id="Viewer" />
       <ComponentRef Id="Locale" />

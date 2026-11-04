@@ -23,6 +23,13 @@
 #include <QHostAddress>
 #include <QHostInfo>
 #include <QLabel>
+#include <QGroupBox>
+#include <QHeaderView>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QTableWidget>
+#include <QUrlQuery>
+#include <QUuid>
 #include <QLocale>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -47,12 +54,13 @@
 #include <QUdpSocket>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <algorithm>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-mediamtx", "en-US")
 MODULE_EXPORT const char *obs_module_description(void)
 {
-	return "MediaMTX server manager with an independent WebRTC output";
+	return "VillaCast: independent WebRTC streaming powered by MediaMTX";
 }
 
 namespace {
@@ -85,6 +93,227 @@ class Panel final : public QWidget {
 	obs_encoder_t *video = nullptr, *audio = nullptr;
 	bool stoppingServer = false;
 	QString serverBuffer, packageBuffer;
+	QLineEdit *playerTitle, *playerBackground;
+	QComboBox *playerFit;
+	QSpinBox *playerVolume, *monitorPort, *statsInterval;
+	QCheckBox *playerSound, *playerAutoplay, *playerControls;
+	QLabel *saveStatus;
+	QTimer saveTimer;
+	QCheckBox *playerLive, *playerStatus, *playerReconnect, *monitorEnabled;
+	QTableWidget *clientsTable;
+	QLabel *clientsStatus;
+	QNetworkAccessManager clientsManager;
+	QPointer<QNetworkReply> clientsReply;
+	QTimer clientsTimer;
+	QJsonArray apiClients, pendingApiClients;
+	QString apiError, monitorPassword;
+	struct HostNameEntry {
+		QString name;
+		qint64 expires = 0;
+		bool pending = false;
+	};
+	QHash<QString, HostNameEntry> clientNames;
+	int nameLookups = 0;
+	QString clientNetworkName(QString address)
+	{
+		QHostAddress ip(address);
+		if (ip.isNull()) {
+			if (address.startsWith('['))
+				address = address.mid(1, address.indexOf(']') - 1);
+			else
+				address = address.section(':', 0, -2);
+			ip.setAddress(address);
+		}
+		if (ip.isNull())
+			return "—";
+		bool ipv4 = false;
+		const auto v4 = ip.toIPv4Address(&ipv4);
+		if (ipv4)
+			ip.setAddress(v4);
+		// Local readers belong to this PC, regardless of hosts-file loopback aliases.
+		if (ip.isLoopback() || (ip.toIPv4Address() >> 24) == 127)
+			return QHostInfo::localHostName();
+		const auto key = ip.toString();
+		const auto now = QDateTime::currentMSecsSinceEpoch();
+		for (auto it = clientNames.begin(); it != clientNames.end();) {
+			if (!it->pending && it->expires <= now)
+				it = clientNames.erase(it);
+			else
+				++it;
+		}
+		if (clientNames.contains(key))
+			return clientNames[key].name.isEmpty() ? QString("—") : clientNames[key].name;
+		if (nameLookups >= 4 || clientNames.size() >= 256)
+			return "—";
+		clientNames.insert(key, {{}, 0, true});
+		++nameLookups;
+		QHostInfo::lookupHost(key, this, [this, key](const QHostInfo &info) {
+			--nameLookups;
+			const auto name = info.hostName();
+			QHostAddress numeric(name);
+			const bool found = info.error() == QHostInfo::NoError && !name.isEmpty() && numeric.isNull();
+			clientNames[key] = {found ? name : QString(),
+					    QDateTime::currentMSecsSinceEpoch() + (found ? 300000 : 60000), false};
+			refreshClients();
+		});
+		return "—";
+	}
+
+	QJsonObject playerOptions() const
+	{
+		return {{"title",
+			 playerTitle->text().trimmed().isEmpty() ? "VillaCast" : playerTitle->text().trimmed()},
+			{"background", playerBackground->text().trimmed()},
+			{"fit", playerFit->currentData().toString()},
+			{"sound", playerSound->isChecked()},
+			{"volume", playerVolume->value()},
+			{"autoplay", playerAutoplay->isChecked()},
+			{"controls", playerControls->isChecked()},
+			{"preventPause", playerLive->isChecked()},
+			{"showStatus", playerStatus->isChecked()},
+			{"autoReconnect", playerReconnect->isChecked()},
+			{"monitor", monitorEnabled->isChecked()},
+			{"statsInterval", statsInterval->value()}};
+	}
+	bool applyPlayerOptions(bool notifyError = true)
+	{
+		if (!QRegularExpression("^#[0-9a-fA-F]{6}$").match(playerBackground->text().trimmed()).hasMatch()) {
+			if (notifyError)
+				log(I18n::text("InvalidBackground"));
+			saveStatus->setText(I18n::text("InvalidBackground"));
+			return false;
+		}
+		viewer.setOptions(playerOptions());
+		save();
+		clientsTimer.setInterval(statsInterval->value() * 1000);
+		saveStatus->setText(I18n::text("AutoSaved"));
+		return true;
+	}
+	void pollClients(int page = 0)
+	{
+		if (clientsReply || server.state() != QProcess::Running || stoppingServer ||
+		    !monitorEnabled->isChecked())
+			return;
+		if (page == 0)
+			pendingApiClients = {};
+		const auto generation = sessionGeneration;
+		QNetworkRequest request(
+			QUrl(QString("http://127.0.0.1:%1/v3/webrtc/sessions/list?page=%2&itemsPerPage=256")
+				     .arg(monitorPort->value())
+				     .arg(page)));
+		request.setRawHeader("Authorization",
+				     "Basic " + ("obs-monitor:" + monitorPassword).toUtf8().toBase64());
+		auto *reply = clientsManager.get(request);
+		clientsReply = reply;
+		QTimer::singleShot(1500, reply, [reply] {
+			if (!reply->isFinished())
+				reply->abort();
+		});
+		connect(reply, &QNetworkReply::finished, this, [this, reply, generation, page] {
+			if (clientsReply == reply)
+				clientsReply.clear();
+			const auto doc = QJsonDocument::fromJson(reply->readAll());
+			const bool valid = reply->error() == QNetworkReply::NoError && doc.isObject() &&
+					   doc.object().value("items").isArray();
+			reply->deleteLater();
+			if (generation != sessionGeneration || stoppingServer)
+				return;
+			if (!valid) {
+				apiError = I18n::text("MonitorUnavailable");
+				apiClients = {};
+				return;
+			}
+			const auto result = doc.object();
+			for (const auto &item : result.value("items").toArray()) {
+				const auto session = item.toObject();
+				if (session.value("state").toString() == "read" &&
+				    session.value("path").toString() == path->text())
+					pendingApiClients.append(session);
+			}
+			if (page + 1 < qMin(16, result.value("pageCount").toInt())) {
+				pollClients(page + 1);
+				return;
+			}
+			apiClients = pendingApiClients;
+			apiError.clear();
+			refreshClients();
+		});
+	}
+	void refreshClients()
+	{
+		if (server.state() != QProcess::Running || !monitorEnabled->isChecked()) {
+			clientsTable->setRowCount(0);
+			clientsStatus->setText(I18n::text(monitorEnabled->isChecked() ? "Stopped" : "MonitorDisabled"));
+			return;
+		}
+		QHash<QString, ViewerReport> reports;
+		for (const auto &report : viewer.clientReports())
+			reports.insert(report.id, report);
+		struct Row {
+			QString id, address, created, state;
+			QJsonObject metrics;
+		};
+		QList<Row> rows;
+		for (const auto &entry : apiClients) {
+			const auto session = entry.toObject();
+			const auto client = QUrlQuery(session.value("query").toString()).queryItemValue("obsClient");
+			Row row{session.value("id").toString(),
+				session.value("remoteAddr").toString(),
+				session.value("created").toString(),
+				session.value("peerConnectionEstablished").toBool() ? "connected" : "connecting",
+				{}};
+			if (reports.contains(client)) {
+				const auto report = reports.take(client);
+				row.id = client;
+				row.address = report.address;
+				row.metrics = report.metrics;
+				row.state = row.metrics.value("state").toString(row.state);
+			}
+			rows.append(row);
+		}
+		for (const auto &report : reports)
+			rows.append(
+				{report.id, report.address,
+				 QDateTime::fromMSecsSinceEpoch(report.firstSeen).toUTC().toString(Qt::ISODateWithMs),
+				 report.metrics.value("state").toString("connecting"), report.metrics});
+		std::sort(rows.begin(), rows.end(), [](const Row &a, const Row &b) { return a.id < b.id; });
+		clientsTable->setRowCount(rows.size());
+		for (int i = 0; i < rows.size(); ++i) {
+			const auto &row = rows[i];
+			const auto created = QDateTime::fromString(row.created, Qt::ISODate);
+			const auto seconds = qMax<qint64>(0, created.secsTo(QDateTime::currentDateTimeUtc()));
+			QStringList values{
+				QString::number(i + 1),
+				clientNetworkName(row.address),
+				row.id.left(8),
+				row.address,
+				created.isValid() ? created.toLocalTime().toString("yyyy-MM-dd HH:mm:ss") : "—",
+				created.isValid() ? QString("%1:%2:%3")
+							    .arg(seconds / 3600, 2, 10, QChar('0'))
+							    .arg(seconds / 60 % 60, 2, 10, QChar('0'))
+							    .arg(seconds % 60, 2, 10, QChar('0'))
+						  : "—",
+				I18n::text(("ClientState_" + row.state).toUtf8().constData()),
+				row.metrics.contains("width") ? QString("%1 × %2")
+									.arg(row.metrics.value("width").toInt())
+									.arg(row.metrics.value("height").toInt())
+							      : "—"};
+			for (const auto &key : {"fps", "bitrate", "loss", "jitter", "rtt", "dropped"})
+				values.append(row.metrics.contains(key)
+						      ? QString::number(row.metrics.value(key).toDouble(), 'f',
+									QByteArray(key) == "dropped" ? 0 : 1)
+						      : "—");
+			for (int c = 0; c < values.size(); ++c) {
+				auto *item = clientsTable->item(i, c);
+				if (!item) {
+					item = new QTableWidgetItem;
+					clientsTable->setItem(i, c, item);
+				}
+				item->setText(values[c]);
+			}
+		}
+		clientsStatus->setText(apiError.isEmpty() ? I18n::text("ClientCount").arg(rows.size()) : apiError);
+	}
 
 	void log(const QString &line)
 	{
@@ -120,6 +349,8 @@ class Panel final : public QWidget {
 		s.setValue("mdns", mdnsEnabled->isChecked());
 		s.setValue("mdnsName", mdnsName->text().trimmed().toLower());
 		s.setValue("networkInterface", networkInterface->currentData());
+		s.setValue("playerOptions", QJsonDocument(playerOptions()).toJson(QJsonDocument::Compact));
+		s.setValue("monitorPort", monitorPort->value());
 	}
 	QString findExecutable() { return Platform::findMediaMtx(executable->text().trimmed()); }
 	QSize effectiveResolution() const
@@ -186,6 +417,10 @@ class Panel final : public QWidget {
 			QString("http://%1:%2/").arg(advertised.isEmpty() ? host : advertised).arg(viewerPort->value()));
 		mdnsStatus->setText(lan->isChecked() && mdnsEnabled->isChecked() ? mdns.description()
 										 : I18n::text("MdnsDisabled"));
+		monitorEnabled->setEnabled(idle);
+		monitorPort->setEnabled(idle && monitorEnabled->isChecked());
+		statsInterval->setEnabled(idle && monitorEnabled->isChecked());
+		refreshClients();
 	}
 	void runPackage(bool update)
 	{
@@ -224,17 +459,22 @@ class Panel final : public QWidget {
 			return false;
 		}
 		if (httpPort->value() == icePort->value() || viewerPort->value() == httpPort->value() ||
-		    viewerPort->value() == icePort->value()) {
+		    viewerPort->value() == icePort->value() ||
+		    (monitorEnabled->isChecked() &&
+		     (monitorPort->value() == httpPort->value() || monitorPort->value() == icePort->value() ||
+		      monitorPort->value() == viewerPort->value()))) {
 			log(I18n::text("DistinctPorts"));
 			return false;
 		}
-		QTcpServer httpCheck, tcpCheck, viewerCheck;
+		QTcpServer httpCheck, tcpCheck, viewerCheck, apiCheck;
 		QUdpSocket udpCheck;
 		const auto bind = QHostAddress::Any;
 		if (!httpCheck.listen(bind, static_cast<quint16>(httpPort->value())) ||
 		    !tcpCheck.listen(bind, static_cast<quint16>(icePort->value())) ||
 		    !udpCheck.bind(bind, static_cast<quint16>(icePort->value())) ||
-		    !viewerCheck.listen(bind, static_cast<quint16>(viewerPort->value()))) {
+		    !viewerCheck.listen(bind, static_cast<quint16>(viewerPort->value())) ||
+		    (monitorEnabled->isChecked() &&
+		     !apiCheck.listen(QHostAddress::LocalHost, static_cast<quint16>(monitorPort->value())))) {
 			log(I18n::text("PortBusy"));
 			return false;
 		}
@@ -255,6 +495,16 @@ class Panel final : public QWidget {
 					     : "[127.0.0.1, '::1']");
 		// Disable newer protocols only on versions that support them. Minimum supported server: 1.21.
 		config += "moq: false\nplayback: false\n";
+		if (monitorEnabled->isChecked()) {
+			monitorPassword = QUuid::createUuid().toString(QUuid::WithoutBraces);
+			config.replace(
+				"paths:\n",
+				QString("  - user: obs-monitor\n    pass: '%1'\n    ips: [127.0.0.1]\n    permissions:\n      - action: api\npaths:\n")
+					.arg(monitorPassword));
+			config += QString("api: true\napiAddress: '127.0.0.1:%1'\napiAllowOrigins: []\n")
+					  .arg(monitorPort->value());
+		} else
+			config += "api: false\n";
 		QSaveFile file(directory + "/mediamtx.yml");
 		if (!file.open(QIODevice::WriteOnly) || file.write(config.toUtf8()) < 0 || !file.commit()) {
 			log(I18n::text("ConfigSaveFailed"));
@@ -267,6 +517,11 @@ class Panel final : public QWidget {
 		if (server.state() != QProcess::NotRunning || package->state() != QProcess::NotRunning || output ||
 		    sessionRequested)
 			return;
+		if (!applyPlayerOptions())
+			return;
+		apiClients = {};
+		pendingApiClients = {};
+		apiError.clear();
 		sessionError.clear();
 		if (protocol->currentData().toString() != "webrtc") {
 			log(I18n::text("ProtocolUnavailable"));
@@ -322,6 +577,11 @@ class Panel final : public QWidget {
 	{
 		sessionRequested = false;
 		++sessionGeneration;
+		clientsTimer.stop();
+		apiClients = {};
+		pendingApiClients = {};
+		if (clientsReply)
+			clientsReply->abort();
 		readinessTimer.stop();
 		if (readinessReply)
 			readinessReply->abort();
@@ -443,24 +703,26 @@ class Panel final : public QWidget {
 		obs_data_set_int(vs, "keyint_sec", 2);
 		obs_data_set_int(vs, "bf", 0);
 		obs_data_set_bool(vs, "lookahead", false);
+		// WebRTC receivers joining later need SPS/PPS with every keyframe.
+		obs_data_set_bool(vs, "repeat_headers", true);
 		obs_data_set_string(vs, "profile", "baseline");
 		obs_data_set_string(vs, "preset", encoder->currentData().toString() == "obs_x264" ? "veryfast" : "p4");
 		obs_data_set_string(vs, "tune",
 				    encoder->currentData().toString() == "obs_x264" ? "zerolatency" : "ull");
 		const auto encoderId = encoder->currentData().toString().toUtf8();
-		video = obs_video_encoder_create(encoderId.constData(), "MediaMTX video", vs, nullptr);
+		video = obs_video_encoder_create(encoderId.constData(), "VillaCast video", vs, nullptr);
 		obs_data_release(vs);
 		auto *as = obs_data_create();
 		obs_data_set_int(as, "bitrate", 128);
-		audio = obs_audio_encoder_create("ffmpeg_opus", "MediaMTX audio", as, 0, nullptr);
+		audio = obs_audio_encoder_create("ffmpeg_opus", "VillaCast audio", as, 0, nullptr);
 		obs_data_release(as);
 		auto *ss = obs_data_create();
 		const auto endpoint =
 			QString("http://127.0.0.1:%1/%2/whip").arg(httpPort->value()).arg(path->text()).toUtf8();
 		obs_data_set_string(ss, "server", endpoint.constData());
-		service = obs_service_create("whip_custom", "MediaMTX local", ss, nullptr);
+		service = obs_service_create("whip_custom", "VillaCast local", ss, nullptr);
 		obs_data_release(ss);
-		output = obs_output_create("whip_output", "MediaMTX independent WebRTC", nullptr, nullptr);
+		output = obs_output_create("whip_output", "VillaCast independent WebRTC", nullptr, nullptr);
 		if (!video || !audio || !service || !output) {
 			releaseOutput();
 			failSession(I18n::text("OutputCreateFailed"));
@@ -520,16 +782,42 @@ public:
 		auto *tabs = new QTabWidget;
 		root->addWidget(tabs);
 		auto *controls = new QWidget;
-		tabs->addTab(controls, I18n::text("StreamTab"));
+		auto *controlsScroll = new QScrollArea;
+		controlsScroll->setWidgetResizable(true);
+		controlsScroll->setWidget(controls);
+		tabs->addTab(controlsScroll, I18n::text("StreamTab"));
 		auto *configuration = new QWidget;
 		auto *configurationScroll = new QScrollArea;
 		configurationScroll->setWidgetResizable(true);
 		configurationScroll->setWidget(configuration);
 		tabs->addTab(configurationScroll, I18n::text("Settings"));
+		auto *clientsTab = new QWidget;
+		tabs->addTab(clientsTab, I18n::text("Clients"));
+		auto *clientsLayout = new QVBoxLayout(clientsTab);
+		clientsStatus = new QLabel;
+		clientsLayout->addWidget(clientsStatus);
+		auto *clientsHelp = new QLabel(I18n::text("ClientsHelp"));
+		clientsHelp->setWordWrap(true);
+		clientsLayout->addWidget(clientsHelp);
+		clientsTable = new QTableWidget(0, 14);
+		clientsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+		clientsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+		QStringList headings;
+		for (const auto &key :
+		     {"RowNumber", "NetworkName", "Client", "Address", "ConnectedSince", "ConnectionTime", "State",
+		      "Resolution", "FPS", "VideoKbps", "PacketLoss", "Jitter", "Rtt", "DroppedFrames"})
+			headings.append(I18n::text(key));
+		clientsTable->setHorizontalHeaderLabels(headings);
+		clientsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+		clientsTable->verticalHeader()->hide();
+		clientsLayout->addWidget(clientsTable);
+		auto *logTab = new QWidget;
+		tabs->addTab(logTab, "LOG");
+		auto *logLayout = new QVBoxLayout(logTab);
 		auto *about = new QWidget;
 		tabs->addTab(about, I18n::text("About"));
 		auto *aboutLayout = new QVBoxLayout(about);
-		auto *aboutTitle = new QLabel("OBS MediaMTX");
+		auto *aboutTitle = new QLabel("VillaCast");
 		auto titleFont = aboutTitle->font();
 		titleFont.setBold(true);
 		aboutTitle->setFont(titleFont);
@@ -541,7 +829,7 @@ public:
 		aboutLayout->addWidget(origin);
 		const auto linkColor = palette().color(QPalette::Window).lightness() < 128 ? "#94bfff" : "#0645ad";
 		auto *projectLink = new QLabel(
-			QString("<a style=\"color:%1\" href=\"https://github.com/efrencd/OBS-MediaMTX\">GitHub · OBS-MediaMTX</a>")
+			QString("<a style=\"color:%1\" href=\"https://github.com/efrencd/VillaCast\">GitHub · VillaCast</a>")
 				.arg(linkColor));
 		projectLink->setTextFormat(Qt::RichText);
 		projectLink->setOpenExternalLinks(true);
@@ -553,6 +841,7 @@ public:
 		autoStart->setToolTip(I18n::text("AutoStartHelp"));
 		layout->addWidget(autoStart);
 		auto *form = new QFormLayout(configuration);
+		form->setRowWrapPolicy(QFormLayout::WrapLongRows);
 		executable = new QLineEdit;
 		form->addRow("MediaMTX", executable);
 		auto *browse = new QPushButton(I18n::text("Browse"));
@@ -597,6 +886,59 @@ public:
 		resolutionMode->addItem(I18n::text("AutoResolution"), "obs");
 		resolutionMode->addItem(I18n::text("Custom"), "custom");
 		form->insertRow(form->rowCount() - 2, I18n::text("Resolution"), resolutionMode);
+		auto *playerGroup = new QGroupBox(I18n::text("WebPlayer"));
+		auto *playerForm = new QFormLayout(playerGroup);
+		playerForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
+		playerTitle = new QLineEdit("VillaCast");
+		playerTitle->setMaxLength(120);
+		playerForm->addRow(I18n::text("PlayerTitle"), playerTitle);
+		playerBackground = new QLineEdit("#111111");
+		playerBackground->setMaxLength(7);
+		playerForm->addRow(I18n::text("PlayerBackground"), playerBackground);
+		playerFit = new QComboBox;
+		playerFit->addItem(I18n::text("FitContain"), "contain");
+		playerFit->addItem(I18n::text("FitCover"), "cover");
+		playerForm->addRow(I18n::text("PlayerFit"), playerFit);
+		auto check = [playerForm](const char *key, bool value) {
+			auto *box = new QCheckBox(I18n::text(key));
+			box->setChecked(value);
+			playerForm->addRow(box);
+			return box;
+		};
+		playerSound = check("PlayerSound", false);
+		playerVolume = new QSpinBox;
+		playerVolume->setRange(0, 100);
+		playerVolume->setValue(100);
+		playerVolume->setSuffix(" %");
+		playerForm->addRow(I18n::text("PlayerVolume"), playerVolume);
+		playerAutoplay = check("PlayerAutoplay", true);
+		playerControls = check("PlayerControls", true);
+		playerLive = check("PlayerLive", true);
+		playerStatus = check("PlayerStatus", true);
+		playerReconnect = check("PlayerReconnect", true);
+		auto *playerHelp = new QLabel(I18n::text("PlayerHelp"));
+		playerHelp->setWordWrap(true);
+		playerForm->addRow(playerHelp);
+		form->addRow(playerGroup);
+		auto *monitorGroup = new QGroupBox(I18n::text("Clients"));
+		auto *monitorForm = new QFormLayout(monitorGroup);
+		monitorForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
+		monitorEnabled = new QCheckBox(I18n::text("MonitorEnabled"));
+		monitorEnabled->setChecked(true);
+		monitorForm->addRow(monitorEnabled);
+		monitorPort = new QSpinBox;
+		monitorPort->setRange(1024, 65535);
+		monitorPort->setValue(9997);
+		monitorForm->addRow(I18n::text("MonitorPort"), monitorPort);
+		statsInterval = new QSpinBox;
+		statsInterval->setRange(1, 30);
+		statsInterval->setValue(2);
+		statsInterval->setSuffix(" s");
+		monitorForm->addRow(I18n::text("StatsInterval"), statsInterval);
+		form->addRow(monitorGroup);
+		saveStatus = new QLabel(I18n::text("AutoSaveHelp"));
+		saveStatus->setWordWrap(true);
+		form->addRow(saveStatus);
 		resolutionInfo = new QLabel;
 		layout->addWidget(resolutionInfo);
 		protocol = new QComboBox;
@@ -618,6 +960,9 @@ public:
 		row(install, upgrade);
 		serverStart = new QPushButton(I18n::text("Start"));
 		serverStop = new QPushButton(I18n::text("Stop"));
+		serverStop->setStyleSheet("QPushButton:enabled {background-color:#2563eb;color:white;}"
+					  "QPushButton:enabled:hover {background-color:#3474f5;}"
+					  "QPushButton:enabled:pressed {background-color:#1d4ed8;}");
 		row(serverStart, serverStop);
 		url = new QLineEdit;
 		url->setReadOnly(true);
@@ -637,8 +982,27 @@ public:
 		logs = new QTextEdit;
 		logs->setReadOnly(true);
 		logs->document()->setMaximumBlockCount(1500);
-		layout->addWidget(logs);
+		logLayout->addWidget(logs);
+		layout->addStretch();
 		auto s = settings();
+		const auto savedPlayer = QJsonDocument::fromJson(s.value("playerOptions").toByteArray()).object();
+		const auto savedTitle = savedPlayer.value("title").toString("VillaCast");
+		playerTitle->setText(savedTitle == "OBS MediaMTX" ? "VillaCast" : savedTitle);
+		const auto background = savedPlayer.value("background").toString("#111111");
+		playerBackground->setText(
+			QRegularExpression("^#[0-9a-fA-F]{6}$").match(background).hasMatch() ? background : "#111111");
+		playerFit->setCurrentIndex(savedPlayer.value("fit").toString() == "cover" ? 1 : 0);
+		playerSound->setChecked(savedPlayer.value("sound").toBool(false));
+		playerVolume->setValue(savedPlayer.value("volume").toInt(100));
+		playerAutoplay->setChecked(savedPlayer.value("autoplay").toBool(true));
+		playerControls->setChecked(savedPlayer.value("controls").toBool(true));
+		playerLive->setChecked(savedPlayer.value("preventPause").toBool(true));
+		playerStatus->setChecked(savedPlayer.value("showStatus").toBool(true));
+		playerReconnect->setChecked(savedPlayer.value("autoReconnect").toBool(true));
+		monitorEnabled->setChecked(savedPlayer.value("monitor").toBool(true));
+		statsInterval->setValue(savedPlayer.value("statsInterval").toInt(2));
+		monitorPort->setValue(s.value("monitorPort", 9997).toInt());
+		connect(monitorEnabled, &QCheckBox::toggled, this, [this] { refresh(); });
 		autoStart->setChecked(s.value("autoStart", false).toBool());
 		connect(autoStart, &QCheckBox::toggled, this, [this] { save(); });
 		executable->setText(s.value("executable").toString());
@@ -673,6 +1037,22 @@ public:
 		connect(width, &QSpinBox::valueChanged, this, [this] { refresh(); });
 		connect(height, &QSpinBox::valueChanged, this, [this] { refresh(); });
 		executable->setText(findExecutable());
+		saveTimer.setSingleShot(true);
+		saveTimer.setInterval(500);
+		connect(&saveTimer, &QTimer::timeout, this, [this] { applyPlayerOptions(false); });
+		auto scheduleSave = [this] {
+			saveTimer.start();
+		};
+		for (auto *field : {executable, path, mdnsName, playerTitle, playerBackground})
+			connect(field, &QLineEdit::textChanged, this, scheduleSave);
+		for (auto *field :
+		     {httpPort, icePort, viewerPort, bitrate, width, height, playerVolume, monitorPort, statsInterval})
+			connect(field, &QSpinBox::valueChanged, this, scheduleSave);
+		for (auto *field : {encoder, networkInterface, protocol, resolutionMode, playerFit})
+			connect(field, &QComboBox::currentIndexChanged, this, scheduleSave);
+		for (auto *field : {lan, mdnsEnabled, playerSound, playerAutoplay, playerControls, playerLive,
+				    playerStatus, playerReconnect, monitorEnabled})
+			connect(field, &QCheckBox::toggled, this, [this] { applyPlayerOptions(false); });
 		connect(browse, &QPushButton::clicked, this, [this] {
 			if (server.state() != QProcess::NotRunning || package->state() != QProcess::NotRunning)
 				return;
@@ -700,6 +1080,10 @@ public:
 			}
 			if (lan->isChecked() && mdnsEnabled->isChecked())
 				mdns.start(mdnsName->text(), networkInterface->currentData().toInt());
+			if (monitorEnabled->isChecked()) {
+				clientsTimer.start(statsInterval->value() * 1000);
+				pollClients();
+			}
 			readinessClock.start();
 			readinessTimer.start();
 			probeReadiness();
@@ -710,6 +1094,11 @@ public:
 			[this] { readLogs(*package, packageBuffer); });
 		connect(&server, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
 			if (error == QProcess::FailedToStart) {
+				clientsTimer.stop();
+				apiClients = {};
+				pendingApiClients = {};
+				if (clientsReply)
+					clientsReply->abort();
 				viewer.stop();
 				mdns.stop();
 				sessionRequested = false;
@@ -736,6 +1125,11 @@ public:
 				sessionRequested = false;
 				++sessionGeneration;
 				readinessTimer.stop();
+				clientsTimer.stop();
+				apiClients = {};
+				pendingApiClients = {};
+				if (clientsReply)
+					clientsReply->abort();
 				if (readinessReply)
 					readinessReply->abort();
 				viewer.stop();
@@ -758,6 +1152,7 @@ public:
 				refresh();
 			});
 		connect(&timer, &QTimer::timeout, this, [this] { refresh(); });
+		connect(&clientsTimer, &QTimer::timeout, this, [this] { pollClients(); });
 		readinessTimer.setInterval(250);
 		connect(&readinessTimer, &QTimer::timeout, this, [this] { probeReadiness(); });
 		timer.start(1000);
@@ -776,9 +1171,13 @@ public:
 	}
 	~Panel() override
 	{
+		saveTimer.stop();
 		timer.stop();
+		clientsTimer.stop();
 		sessionRequested = false;
 		++sessionGeneration;
+		if (clientsReply)
+			clientsReply->abort();
 		readinessTimer.stop();
 		if (readinessReply)
 			readinessReply->abort();
@@ -835,7 +1234,7 @@ void obs_module_post_load(void)
 		return;
 	}
 	panel = new Panel;
-	if (!obs_frontend_add_dock_by_id(dockId, "MediaMTX · WebRTC", panel)) {
+	if (!obs_frontend_add_dock_by_id(dockId, "VillaCast", panel)) {
 		delete panel;
 		panel = nullptr;
 	}
