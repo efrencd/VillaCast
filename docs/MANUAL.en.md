@@ -1,4 +1,4 @@
-# VillaCast 0.8.0 — User manual
+# VillaCast 0.8.1 — User manual
 
 [Español](MANUAL.es.md) · [Project](../README.md) · [Downloads](https://github.com/efrencd/VillaCast/releases/latest)
 
@@ -48,8 +48,7 @@ layouts. The log is separate from Stream.
 | Resolution summary | Shows the effective width/height and whether OBS output or custom dimensions are used. |
 | Install MediaMTX | Uses WinGet to download/install the separately distributed server. The confirmation explains package/source agreements; progress appears in LOG. |
 | Update MediaMTX | Uses WinGet to update the server, not the VillaCast plugin. Stop the stream first. Update VillaCast itself with its MSI. |
-| Start | Starts the managed server, waits for readiness, then starts the independent stream. |
-| Stop (blue) | Stops the independent stream and the server started by VillaCast. Does not stop OBS's other outputs or an unrelated server. |
+| Start / Stop (one blue button) | When stopped, starts the server and independent stream. During startup/live operation, changes to Stop to end both. During stopping it is temporarily disabled. Other OBS outputs and unrelated servers are not stopped. A green dot pulses softly beside it while this output is active. |
 | Main link | Read-only viewer address. Uses the advertised `.local` name when available, otherwise an IP. |
 | mDNS status | Shows the advertised address/interface, a name conflict, or an mDNS error. |
 | Alternative IP link | Read-only address for the selected network interface; useful if `.local` resolution fails. |
@@ -69,7 +68,7 @@ a configured port, VillaCast reports the conflict instead of closing that applic
 | Stream name | Media path shared by publisher/reader, default `mystream`; 1–64 letters, digits, hyphens or underscores. |
 | Web port | MediaMTX HTTP port used for WebRTC WHIP/WHEP signaling, default 8889. Not the custom viewer's port. |
 | ICE port (UDP/TCP) | Media transport port, default 8189. Network policy must allow the connection. |
-| Player port | VillaCast's custom HTTP web player, default 8891. Share this address with viewers. |
+| Player port | VillaCast's custom HTTP web player, default 8000. Share this address with viewers. |
 | Allow viewing from the local network | Allows local/private-network readers. When off, links/bindings are restricted to the local PC. Not an Internet publication switch. |
 | Advertise a .local name (mDNS) | Advertises an optional name so viewers can avoid typing a changing IP on compatible networks. Requires LAN viewing. |
 | Name (without .local) | 1–63 lowercase letters, digits or hyphens; no leading/trailing hyphen. Enter `school-tv` to advertise `school-tv.local`. |
@@ -81,7 +80,8 @@ a configured port, VillaCast reports the conflict instead of closing that applic
 
 The WebRTC audio codec is Opus at 128 kbps, taken from OBS audio mix 1. These are not
 separate controls in this version. The three public ports must differ; the monitoring
-port also needs to be free. No firewall/router rules are created automatically.
+port also needs to be free. No firewall/router rules are created automatically. The 8000 default only applies
+to installations without a saved player port; existing ports are kept.
 
 ## Settings tab — web player
 
@@ -92,7 +92,7 @@ port also needs to be free. No firewall/router rules are created automatically.
 | Image fit: Entire image | Keeps the full picture and aspect ratio; empty borders can appear. |
 | Image fit: Fill window (crops) | Fills the available space while retaining aspect ratio; picture edges may be cropped. |
 | Sound enabled by default | Requests initial unmuted playback. Browsers can require a user click regardless of this setting. |
-| Initial volume | Initial player volume from 0–100%; independent of OBS mix level and device volume. |
+| Initial volume | Initial player volume from 0–100%; independent of OBS mix level and device volume. Mouse-wheel input scrolls the panel without changing this value; use the arrows, keyboard or typed value. |
 | Autoplay | Requests playback as soon as the stream arrives. If disabled, a central Play button starts it. |
 | Show control bar | Shows one complete icon bar with sound, volume and fullscreen. Play/pause is included only when live mode is off. No separate volume-bar setting. |
 | Live mode: prevent pause | Hides normal pause controls and attempts to resume pauses. Cannot stop browser/device suspension or force a closed tab to play. |

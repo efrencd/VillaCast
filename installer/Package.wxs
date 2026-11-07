@@ -7,6 +7,8 @@
     <MajorUpgrade DowngradeErrorMessage="!(loc.NewerVersion)" IgnoreLanguage="yes"
                   Schedule="afterInstallInitialize" />
     <MediaTemplate EmbedCab="yes" />
+    <Icon Id="VillaCastIcon" SourceFile="$(var.PayloadDir)\data\villacast.ico" />
+    <Property Id="ARPPRODUCTICON" Value="VillaCastIcon" />
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
     <Property Id="OBS_INSTALL_DIR">
       <RegistrySearch Id="FindOBS" Root="HKLM" Key="SOFTWARE\OBS Studio" Type="raw" Bitness="always64" />
@@ -52,6 +54,15 @@
               </Directory>
             </Directory>
             <Directory Id="DATA" Name="data">
+              <Component Id="LogoPng" Guid="*" Bitness="always64">
+                <File Source="$(var.PayloadDir)\data\villacast.png" KeyPath="yes" />
+              </Component>
+              <Component Id="Favicon" Guid="*" Bitness="always64">
+                <File Source="$(var.PayloadDir)\data\favicon.png" KeyPath="yes" />
+              </Component>
+              <Component Id="LogoIco" Guid="*" Bitness="always64">
+                <File Source="$(var.PayloadDir)\data\villacast.ico" KeyPath="yes" />
+              </Component>
               <Component Id="Viewer" Guid="*" Bitness="always64">
                 <File Source="$(var.PayloadDir)\data\viewer.html" KeyPath="yes" />
               </Component>
@@ -75,6 +86,9 @@
       <ComponentRef Id="ReadmeSpanish" />
       <ComponentRef Id="Validation" />
       <ComponentRef Id="PluginBinary" />
+      <ComponentRef Id="LogoPng" />
+      <ComponentRef Id="Favicon" />
+      <ComponentRef Id="LogoIco" />
       <ComponentRef Id="Viewer" />
       <ComponentRef Id="Locale" />
       <ComponentRef Id="LocaleSpanish" />

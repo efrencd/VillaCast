@@ -1,4 +1,4 @@
-# VillaCast 0.8.0 — Manual de uso
+# VillaCast 0.8.1 — Manual de uso
 
 [English](MANUAL.en.md) · [Proyecto](../README.es.md) · [Descargas](https://github.com/efrencd/VillaCast/releases/latest)
 
@@ -49,8 +49,7 @@ reducir su altura. El registro está separado de Emisión.
 | Resumen de resolución | Muestra ancho/alto efectivos y si se sigue la salida de OBS o una resolución personalizada. |
 | Instalar MediaMTX | Descarga/instala el servidor por separado mediante WinGet. La confirmación explica los acuerdos de paquete/origen; el progreso aparece en LOG. |
 | Actualizar MediaMTX | Actualiza el servidor mediante WinGet, no el plugin VillaCast. Requiere detener la emisión. VillaCast se actualiza con su MSI. |
-| Iniciar | Arranca el servidor gestionado, espera a que esté listo e inicia la emisión independiente. |
-| Detener, en azul | Detiene la emisión independiente y el servidor iniciado por VillaCast. No detiene las otras salidas de OBS ni un servidor ajeno. |
+| Iniciar / Detener, un único botón azul | Detenido, inicia servidor y emisión. Al iniciar/emitir cambia a Detener para finalizar ambos; mientras se detiene queda temporalmente deshabilitado. No afecta a las otras salidas de OBS ni a servidores ajenos. Un punto verde pulsa suavemente junto al botón cuando esta salida está activa. |
 | Enlace principal | Dirección del reproductor, de solo lectura. Utiliza el nombre `.local` anunciado si está disponible; si no, una IP. |
 | Estado mDNS | Muestra el nombre/dirección/interfaz anunciados, conflictos de nombre o errores de mDNS. |
 | Enlace alternativo por IP | Dirección para la interfaz elegida; útil si el nombre `.local` no funciona. |
@@ -70,7 +69,7 @@ ocupa un puerto, VillaCast informa del conflicto en lugar de cerrar esa aplicaci
 | Nombre de señal | Ruta compartida por emisor/receptor; por defecto `mystream`. Entre 1 y 64 letras, números, guiones o guiones bajos. |
 | Puerto web | Puerto HTTP de MediaMTX para señalización WHIP/WHEP, por defecto 8889. No es el del reproductor personalizado. |
 | Puerto ICE (UDP/TCP) | Transporte de audio/vídeo, por defecto 8189. La red debe permitir la conexión. |
-| Puerto del reproductor | Servidor HTTP del reproductor de VillaCast, por defecto 8891. Este es el enlace que se comparte. |
+| Puerto del reproductor | Servidor HTTP del reproductor de VillaCast, por defecto 8000. Este es el enlace que se comparte. |
 | Permitir lectura desde la red local | Permite receptores de redes locales/privadas. Al desactivarlo, los enlaces y escuchas se restringen al propio PC. No es un interruptor para publicar en Internet. |
 | Anunciar un nombre .local (mDNS) | Publica un nombre opcional para no escribir una IP cambiante en redes compatibles. Requiere permitir lectura desde la red local. |
 | Nombre (sin .local) | Entre 1 y 63 letras minúsculas, números o guiones, sin guion inicial/final. `tv-colegio` anuncia `tv-colegio.local`. |
@@ -82,7 +81,8 @@ ocupa un puerto, VillaCast informa del conflicto en lugar de cerrar esa aplicaci
 
 El audio WebRTC es Opus a 128 kbps de la mezcla 1 de OBS; no hay controles separados
 para ello. Los tres puertos públicos deben ser distintos y el de supervisión también
-debe estar libre. No se crean reglas de cortafuegos/router automáticamente.
+debe estar libre. No se crean reglas de cortafuegos/router automáticamente. El valor 8000 solo se
+aplica si no existe un puerto del reproductor guardado; los anteriores se mantienen.
 
 ## Pestaña Ajustes — reproductor web
 
@@ -93,7 +93,7 @@ debe estar libre. No se crean reglas de cortafuegos/router automáticamente.
 | Ajuste: Imagen completa | Conserva la imagen completa y su proporción; pueden quedar bandas vacías. |
 | Ajuste: Llenar ventana (recorta) | Llena el espacio conservando la proporción, pero puede recortar los bordes. |
 | Sonido activado por defecto | Solicita comenzar con sonido. El navegador puede exigir un clic de todas formas. |
-| Volumen inicial | Volumen del reproductor de 0–100%; independiente de la mezcla de OBS y del volumen del dispositivo. |
+| Volumen inicial | Volumen del reproductor de 0–100%; independiente de OBS y del dispositivo. La rueda desplaza el panel sin cambiar el valor; utiliza las flechas, el teclado o escribe la cifra. |
 | Reproducción automática | Solicita reproducir al llegar la señal. Desactivada, aparece un botón central para empezar. |
 | Mostrar barra de controles | Muestra una barra única con iconos de sonido, volumen y pantalla completa. Incluye reproducción/pausa solo si el modo directo está desactivado. |
 | Modo directo: impedir pausa | Oculta los controles normales de pausa e intenta reanudar pausas. No puede impedir la suspensión del navegador/dispositivo ni reproducir con la pestaña cerrada. |

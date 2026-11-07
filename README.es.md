@@ -1,5 +1,7 @@
 # VillaCast
 
+<img src="data/villacast.png" width="128" alt="Logo VillaCast: vídeo distribuido a pantallas en red">
+
 **Convierte OBS en un canal de televisión en directo para tu red local.**
 
 [English](README.md) · [Descargar instaladores](https://github.com/efrencd/VillaCast/releases/latest) · [Manual de uso](docs/MANUAL.es.md)
@@ -16,7 +18,7 @@ Villaverde, en Fuerteventura, Islas Canarias**.
 ## Funciones
 
 - Emisión WebRTC H.264/Opus independiente de la transmisión y grabación principales de OBS.
-- Inicio y parada conjuntos del servidor y la emisión; inicio automático opcional al abrir OBS.
+- Botón único Iniciar/Detener con indicador verde de emisión que pulsa suavemente; inicio automático opcional al abrir OBS.
 - Instalación y actualización de MediaMTX mediante WinGet o selección de una instalación existente.
 - Resolución y FPS de la salida de OBS, dimensiones personalizadas y codificadores x264/NVIDIA NVENC.
 - Enlace por IP o nombre `.local` opcional en redes compatibles.
@@ -27,15 +29,15 @@ Villaverde, en Fuerteventura, Islas Canarias**.
 
 ## Descargar e instalar — Windows x64
 
-Versión actual: **0.8.0**, una versión inicial. Descarga desde
+Versión actual: **0.8.1**, una versión inicial. Descarga desde
 [GitHub Releases](https://github.com/efrencd/VillaCast/releases/latest):
 
 | Archivo | Uso |
 | --- | --- |
-| `VillaCast-0.8.0-windows-x64-es-ES.msi` | Instalador con asistente en español |
-| `VillaCast-0.8.0-windows-x64-en-US.msi` | Instalador con asistente en inglés |
-| `VillaCast-0.8.0-windows-x64-portable.zip` | Archivos del plugin y script de instalación |
-| `VillaCast-0.8.0-windows-x64-SHA256SUMS.txt` | Sumas SHA-256 para comprobar las descargas |
+| `VillaCast-0.8.1-windows-x64-es-ES.msi` | Instalador con asistente en español |
+| `VillaCast-0.8.1-windows-x64-en-US.msi` | Instalador con asistente en inglés |
+| `VillaCast-0.8.1-windows-x64-portable.zip` | Archivos del plugin y script de instalación |
+| `VillaCast-0.8.1-windows-x64-SHA256SUMS.txt` | Sumas SHA-256 para comprobar las descargas |
 
 Ambos MSI incluyen el mismo plugin bilingüe: **instala solo uno**. Cierra OBS, ejecuta
 el instalador con permisos de administrador y vuelve a abrir OBS. Activa
@@ -55,6 +57,9 @@ una GPU NVIDIA y controlador compatibles. Aún no hay versiones para Linux/macOS
 5. Prueba **Abrir vídeo** o utiliza **Copiar enlace** para compartirlo con las aulas.
 6. Consulta **Clientes** y **LOG**. Pulsa **Detener** para terminar la emisión y el servidor.
 
+El reproductor usa el puerto 8000 por defecto en instalaciones nuevas; se conservan
+los puertos ya guardados.
+
 El navegador puede exigir un clic para activar el sonido o iniciar la reproducción.
 Los ajustes se guardan automáticamente; recarga las páginas abiertas para aplicar
 cambios del reproductor. Al cerrar OBS se detiene el servidor iniciado por VillaCast.
@@ -62,7 +67,7 @@ El inicio automático solo actúa al abrir OBS; no añade nada al inicio de Wind
 
 ## Red y supervisión
 
-Puertos predeterminados: reproductor TCP **8891**, señalización WebRTC TCP **8889**,
+Puertos predeterminados: reproductor TCP **8000**, señalización WebRTC TCP **8889**,
 vídeo/audio UDP/TCP **8189** y API de supervisión **127.0.0.1:9997**, protegida con una
 credencial aleatoria por arranque. El nombre `.local` depende de mDNS. El aislamiento
 Wi-Fi, las VLAN o el cortafuegos pueden impedir el acceso. VillaCast no cambia el

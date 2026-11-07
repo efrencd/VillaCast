@@ -3,6 +3,8 @@
 #include "i18n.hpp"
 #include <QDateTime>
 #include <QFile>
+#include <QFileInfo>
+#include <QDir>
 #include <QJsonDocument>
 #include <QTcpSocket>
 #include <QTimer>
@@ -84,6 +86,11 @@ ViewerServer::ViewerServer(QObject *parent) : QTcpServer(parent)
 					json.replace(">", "\\u003e");
 					json.replace("&", "\\u0026");
 					body.replace("__PLAYER_OPTIONS__", json);
+				} else if (first.size() == 3 && (first[0] == "GET" || first[0] == "HEAD") &&
+					   target == "/favicon.png" && !favicon.isEmpty()) {
+					code = 200;
+					type = "image/png";
+					body = favicon;
 				} else if (first.size() == 3 && first[0] == "POST" &&
 					   (target == "/telemetry/register" || target == "/telemetry")) {
 					type = "application/json";
@@ -210,6 +217,8 @@ bool ViewerServer::start(quint16 port, bool lan, quint16 webrtcPort, const QStri
 	if (!file.open(QIODevice::ReadOnly))
 		return false;
 	html = file.readAll();
+	QFile icon(QFileInfo(templateFile).dir().filePath("favicon.png"));
+	favicon = icon.open(QIODevice::ReadOnly) ? icon.readAll() : QByteArray();
 	html.replace("__WEBRTC_PORT__", QByteArray::number(webrtcPort));
 	html.replace("__STREAM_PATH__", path.toUtf8());
 	html.replace("__LANG__", I18n::isSpanish() ? "es" : "en");

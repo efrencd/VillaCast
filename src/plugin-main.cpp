@@ -19,6 +19,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QGraphicsOpacityEffect>
 #include <QHBoxLayout>
 #include <QHostAddress>
 #include <QHostInfo>
@@ -39,12 +40,15 @@
 #include <QNetworkRequest>
 #include <QPointer>
 #include <QProcess>
+#include <QPixmap>
+#include <QPropertyAnimation>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QScrollArea>
 #include <QSettings>
 #include <QSpinBox>
+#include <QWheelEvent>
 #include <QStandardPaths>
 #include <QTabWidget>
 #include <QTcpServer>
@@ -67,6 +71,11 @@ namespace {
 
 constexpr auto dockId = "obs-mediamtx.control";
 
+class ScrollSafeSpinBox final : public QSpinBox {
+protected:
+	void wheelEvent(QWheelEvent *event) override { event->ignore(); }
+};
+
 class Panel final : public QWidget {
 	QLineEdit *executable, *path, *url, *mdnsName, *ipUrl;
 	QSpinBox *httpPort, *icePort, *viewerPort, *bitrate, *width, *height;
@@ -76,7 +85,9 @@ class Panel final : public QWidget {
 	MdnsPublisher mdns;
 	ViewerServer viewer;
 	QTextEdit *logs;
-	QPushButton *serverStart, *serverStop, *install, *upgrade;
+	QPushButton *streamToggle, *install, *upgrade;
+	QLabel *streamIndicator;
+	QPropertyAnimation *streamPulse;
 	QProcess server;
 	QProcess *package = new QProcess;
 	QTimer timer;
@@ -368,8 +379,15 @@ class Panel final : public QWidget {
 		const bool busy = package->state() != QProcess::NotRunning;
 		const bool active = output != nullptr;
 		const bool idle = !running && !busy && !active && !sessionRequested && !stoppingServer;
-		serverStart->setEnabled(idle);
-		serverStop->setEnabled((running || active || sessionRequested) && !stoppingServer);
+		const bool canStop = (running || active || sessionRequested) && !stoppingServer;
+		streamToggle->setEnabled(idle || canStop);
+		streamToggle->setText(I18n::text(stoppingServer ? "StoppingButton" : canStop ? "Stop" : "Start"));
+		const bool live = outputConnected && !stoppingServer;
+		streamIndicator->setVisible(live);
+		if (live && streamPulse->state() != QAbstractAnimation::Running)
+			streamPulse->start();
+		else if (!live)
+			streamPulse->stop();
 		protocol->setEnabled(idle);
 		install->setEnabled(!running && !active && !busy);
 		upgrade->setEnabled(!running && !active && !busy);
@@ -821,7 +839,17 @@ public:
 		auto titleFont = aboutTitle->font();
 		titleFont.setBold(true);
 		aboutTitle->setFont(titleFont);
-		aboutLayout->addWidget(aboutTitle);
+		auto *aboutBrand = new QHBoxLayout;
+		auto *aboutLogo = new QLabel;
+		char *logoPath = obs_module_file("villacast.png");
+		if (logoPath) {
+			aboutLogo->setPixmap(QPixmap(QString::fromUtf8(logoPath))
+						     .scaled(48, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+			bfree(logoPath);
+		}
+		aboutBrand->addWidget(aboutLogo);
+		aboutBrand->addWidget(aboutTitle, 1);
+		aboutLayout->addLayout(aboutBrand);
 		aboutLayout->addWidget(new QLabel(I18n::text("AboutVersion").arg(QString::fromUtf8(PLUGIN_VERSION))));
 		aboutLayout->addWidget(new QLabel(I18n::text("AboutAuthor").arg("Efren C.D.")));
 		auto *origin = new QLabel(I18n::text("AboutOrigin"));
@@ -857,7 +885,7 @@ public:
 		};
 		httpPort = spin(I18n::text("WebPort"), 1024, 65535, 8889);
 		icePort = spin(I18n::text("IcePort"), 1024, 65535, 8189);
-		viewerPort = spin(I18n::text("PlayerPort"), 1024, 65535, 8891);
+		viewerPort = spin(I18n::text("PlayerPort"), 1024, 65535, 8000);
 		lan = new QCheckBox(I18n::text("AllowLan"));
 		lan->setChecked(true);
 		form->addRow(lan);
@@ -906,7 +934,7 @@ public:
 			return box;
 		};
 		playerSound = check("PlayerSound", false);
-		playerVolume = new QSpinBox;
+		playerVolume = new ScrollSafeSpinBox;
 		playerVolume->setRange(0, 100);
 		playerVolume->setValue(100);
 		playerVolume->setSuffix(" %");
@@ -958,12 +986,32 @@ public:
 		install = new QPushButton(I18n::text("Install"));
 		upgrade = new QPushButton(I18n::text("Update"));
 		row(install, upgrade);
-		serverStart = new QPushButton(I18n::text("Start"));
-		serverStop = new QPushButton(I18n::text("Stop"));
-		serverStop->setStyleSheet("QPushButton:enabled {background-color:#2563eb;color:white;}"
-					  "QPushButton:enabled:hover {background-color:#3474f5;}"
-					  "QPushButton:enabled:pressed {background-color:#1d4ed8;}");
-		row(serverStart, serverStop);
+		streamToggle = new QPushButton(I18n::text("Start"));
+		streamToggle->setStyleSheet("QPushButton:enabled {background-color:#2563eb;color:white;}"
+					    "QPushButton:enabled:hover {background-color:#3474f5;}"
+					    "QPushButton:enabled:pressed {background-color:#1d4ed8;}");
+		streamIndicator = new QLabel(QString::fromUtf8("●"));
+		streamIndicator->setFixedWidth(20);
+		streamIndicator->setAlignment(Qt::AlignCenter);
+		streamIndicator->setStyleSheet("color:#24df83;font-size:20px;");
+		streamIndicator->setToolTip(I18n::text("Streaming"));
+		streamIndicator->setAccessibleName(I18n::text("Streaming"));
+		auto indicatorPolicy = streamIndicator->sizePolicy();
+		indicatorPolicy.setRetainSizeWhenHidden(true);
+		streamIndicator->setSizePolicy(indicatorPolicy);
+		auto *pulseEffect = new QGraphicsOpacityEffect(streamIndicator);
+		streamIndicator->setGraphicsEffect(pulseEffect);
+		streamPulse = new QPropertyAnimation(pulseEffect, "opacity", this);
+		streamPulse->setDuration(1800);
+		streamPulse->setStartValue(1.0);
+		streamPulse->setKeyValueAt(0.5, 0.3);
+		streamPulse->setEndValue(1.0);
+		streamPulse->setEasingCurve(QEasingCurve::InOutSine);
+		streamPulse->setLoopCount(-1);
+		auto *streamRow = new QHBoxLayout;
+		streamRow->addWidget(streamToggle, 1);
+		streamRow->addWidget(streamIndicator);
+		layout->addLayout(streamRow);
 		url = new QLineEdit;
 		url->setReadOnly(true);
 		layout->addWidget(url);
@@ -1009,7 +1057,7 @@ public:
 		path->setText(s.value("path", "mystream").toString());
 		httpPort->setValue(s.value("http", 8889).toInt());
 		icePort->setValue(s.value("ice", 8189).toInt());
-		viewerPort->setValue(s.value("viewer", 8891).toInt());
+		viewerPort->setValue(s.value("viewer", 8000).toInt());
 		lan->setChecked(s.value("lan", true).toBool());
 		mdnsEnabled->setChecked(s.value("mdns", true).toBool());
 		auto defaultName = QHostInfo::localHostName().section('.', 0, 0).toLower();
@@ -1064,8 +1112,12 @@ public:
 		});
 		connect(install, &QPushButton::clicked, this, [this] { runPackage(false); });
 		connect(upgrade, &QPushButton::clicked, this, [this] { runPackage(true); });
-		connect(serverStart, &QPushButton::clicked, this, [this] { startServer(); });
-		connect(serverStop, &QPushButton::clicked, this, [this] { stopServer(); });
+		connect(streamToggle, &QPushButton::clicked, this, [this] {
+			if (server.state() != QProcess::NotRunning || output || sessionRequested)
+				stopServer();
+			else
+				startServer();
+		});
 		connect(open, &QPushButton::clicked, this, [this] { QDesktopServices::openUrl(QUrl(url->text())); });
 		connect(copy, &QPushButton::clicked, this, [this] { QApplication::clipboard()->setText(url->text()); });
 		connect(folder, &QPushButton::clicked, this,

@@ -22,6 +22,7 @@ public:
 
 private:
 	QByteArray html;
+	QByteArray favicon;
 	QJsonObject options;
 	QHash<QString, ViewerReport> reports;
 	void pruneReports();

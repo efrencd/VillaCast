@@ -47,6 +47,9 @@ int main(int argc, char **argv)
 	};
 	const auto page = request("/");
 	check(page.code == 200, "GET viewer");
+	const auto favicon = request("/favicon.png");
+	check(favicon.code == 200 && favicon.body.startsWith(QByteArray::fromHex("89504e470d0a1a0a")),
+	      "Serve bundled PNG icon");
 	check(!page.body.contains("__PLAYER_OPTIONS__") && !page.body.contains("__LANG__"),
 	      "Options and language substituted");
 	check(!page.body.contains("</script><script>alert(1)") && page.body.contains("\\u003c/script\\u003e"),

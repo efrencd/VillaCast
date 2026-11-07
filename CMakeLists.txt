@@ -53,6 +53,7 @@ target_compile_features(${CMAKE_PROJECT_NAME} PRIVATE cxx_std_17)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Network)
 if(WIN32)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ws2_32)
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/villacast.rc)
 endif()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

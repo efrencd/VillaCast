@@ -1,3 +1,13 @@
+# Local validation — VillaCast 0.8.1 (2026-11-07)
+
+- CMake build and CTest 3/3 passed, including bundled favicon HTTP serving.
+- OBS portable: one Start/Stop button; cancellable startup, temporarily disabled while stopping, green opacity animation while live.
+- New settings without a saved viewer port display 8000; saved ports are retained. An occupied port is reported without disrupting another instance.
+- Real browser test on isolated ports: 1280x720, 45 frames in 1.5 seconds (30 FPS), favicon HTTP 200 / 19,245 bytes.
+- Wheel input over Initial volume scrolls the enclosing panel and leaves the value unchanged.
+- Generated PNG logo, multiresolution ICO and lightweight favicon included; Windows DLL icon resource compiled.
+- Local build only; not published to GitHub.
+
 # VillaCast 0.8.0 — Validation scope
 
 ## Environment

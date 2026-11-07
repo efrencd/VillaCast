@@ -1,5 +1,7 @@
 # VillaCast
 
+<img src="data/villacast.png" width="128" alt="VillaCast logo: video distributed to networked screens">
+
 **Turn OBS into a live TV channel for your local network.**
 
 [Español](README.es.md) · [Download installers](https://github.com/efrencd/VillaCast/releases/latest) · [User manual](docs/MANUAL.en.md)
@@ -16,7 +18,7 @@ Canary Islands**, by **Efren C.D.**
 ## What it does
 
 - Independent H.264/Opus WebRTC output: continue streaming or recording with OBS's main outputs.
-- Start/stop the server and stream together; optional automatic start when OBS opens.
+- One Start/Stop button controls server and stream together, with a softly pulsing green live indicator; optional automatic start when OBS opens.
 - Install/update MediaMTX with WinGet or select an existing installation.
 - Use OBS output resolution and frame rate, or choose custom dimensions; x264 and NVIDIA NVENC support.
 - Share an IP link or an optional stable `.local` name on compatible networks.
@@ -27,15 +29,15 @@ Canary Islands**, by **Efren C.D.**
 
 ## Download and install — Windows x64
 
-Current version: **0.8.0**, an early release. Download from
+Current version: **0.8.1**, an early release. Download from
 [GitHub Releases](https://github.com/efrencd/VillaCast/releases/latest):
 
 | File | Purpose |
 | --- | --- |
-| `VillaCast-0.8.0-windows-x64-en-US.msi` | Installer with an English wizard |
-| `VillaCast-0.8.0-windows-x64-es-ES.msi` | Installer with a Spanish wizard |
-| `VillaCast-0.8.0-windows-x64-portable.zip` | Extracted plugin files and installation script |
-| `VillaCast-0.8.0-windows-x64-SHA256SUMS.txt` | SHA-256 download checksums |
+| `VillaCast-0.8.1-windows-x64-en-US.msi` | Installer with an English wizard |
+| `VillaCast-0.8.1-windows-x64-es-ES.msi` | Installer with a Spanish wizard |
+| `VillaCast-0.8.1-windows-x64-portable.zip` | Extracted plugin files and installation script |
+| `VillaCast-0.8.1-windows-x64-SHA256SUMS.txt` | SHA-256 download checksums |
 
 Both MSI files contain the same bilingual plugin: **install only one**. Close OBS,
 run the installer with administrator rights, reopen OBS and select **Docks → VillaCast**.
@@ -55,6 +57,8 @@ NVENC requires a compatible NVIDIA GPU and driver. Linux/macOS builds are not ye
 5. Click **Open video** to test, or **Copy link** and open it on other devices.
 6. Use **Clients** to inspect receivers and **LOG** to troubleshoot. Click **Stop** to end delivery.
 
+The player port defaults to 8000 for new installations; saved ports are preserved.
+
 The browser may require a click to enable sound or start playback. Settings save
 automatically; reload existing viewer pages after changing player options. Closing
 OBS stops the server started by VillaCast. Automatic start applies only when OBS
@@ -62,7 +66,7 @@ opens; it does not add anything to Windows startup.
 
 ## Network and monitoring
 
-Defaults: viewer TCP **8891**, WebRTC signaling TCP **8889**, media UDP/TCP **8189**,
+Defaults: viewer TCP **8000**, WebRTC signaling TCP **8889**, media UDP/TCP **8189**,
 monitoring API **127.0.0.1:9997**. The API uses a random credential per server start.
 The optional `.local` address depends on mDNS support; VLAN separation, wireless
 client isolation or firewall policy can prevent access. VillaCast does not change
