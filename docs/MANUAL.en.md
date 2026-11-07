@@ -1,4 +1,4 @@
-# VillaCast 0.8.1 — User manual
+# VillaCast 0.8.2 — User manual
 
 [Español](MANUAL.es.md) · [Project](../README.md) · [Downloads](https://github.com/efrencd/VillaCast/releases/latest)
 
@@ -30,7 +30,9 @@ Changes save automatically: checkboxes immediately, typed/numeric/selection valu
 after about 0.5 seconds of inactivity. Invalid background values show an error;
 correct them to `#RRGGBB`. **Reload open viewer pages** to apply player changes.
 Network and encoder settings require stopping VillaCast first; disabled controls
-become available once stopped. There is no independent FPS setting: change
+become available once stopped. The mouse wheel scrolls the panel without changing numeric fields or closed dropdowns,
+even when they have focus. Use arrow buttons/keys, typed values or an opened dropdown
+to change settings. There is no independent FPS setting: change
 **OBS Settings → Video → FPS** while the OBS outputs are stopped.
 
 The UI uses Spanish when OBS or the primary OS UI language is Spanish; otherwise

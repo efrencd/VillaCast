@@ -1,3 +1,11 @@
+# Local validation — VillaCast 0.8.2 (2026-11-07)
+
+- All numeric settings use wheel-safe spin boxes; all selectors use wheel-safe combo boxes.
+- OBS portable: wheel over Web port kept 18889 and moved the Settings scrollbar.
+- Wheel over the encoder selector kept NVIDIA NVENC H.264 and moved the Settings scrollbar to 120.
+- Arrow buttons, keyboard entry and opened dropdown selection remain available.
+- Local update only; not published to GitHub.
+
 # Local validation — VillaCast 0.8.1 (2026-11-07)
 
 - CMake build and CTest 3/3 passed, including bundled favicon HTTP serving.

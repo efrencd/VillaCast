@@ -29,15 +29,15 @@ Canary Islands**, by **Efren C.D.**
 
 ## Download and install — Windows x64
 
-Current version: **0.8.1**, an early release. Download from
+Current version: **0.8.2**, an early release. Download from
 [GitHub Releases](https://github.com/efrencd/VillaCast/releases/latest):
 
 | File | Purpose |
 | --- | --- |
-| `VillaCast-0.8.1-windows-x64-en-US.msi` | Installer with an English wizard |
-| `VillaCast-0.8.1-windows-x64-es-ES.msi` | Installer with a Spanish wizard |
-| `VillaCast-0.8.1-windows-x64-portable.zip` | Extracted plugin files and installation script |
-| `VillaCast-0.8.1-windows-x64-SHA256SUMS.txt` | SHA-256 download checksums |
+| `VillaCast-0.8.2-windows-x64-en-US.msi` | Installer with an English wizard |
+| `VillaCast-0.8.2-windows-x64-es-ES.msi` | Installer with a Spanish wizard |
+| `VillaCast-0.8.2-windows-x64-portable.zip` | Extracted plugin files and installation script |
+| `VillaCast-0.8.2-windows-x64-SHA256SUMS.txt` | SHA-256 download checksums |
 
 Both MSI files contain the same bilingual plugin: **install only one**. Close OBS,
 run the installer with administrator rights, reopen OBS and select **Docks → VillaCast**.

@@ -76,6 +76,11 @@ protected:
 	void wheelEvent(QWheelEvent *event) override { event->ignore(); }
 };
 
+class ScrollSafeComboBox final : public QComboBox {
+protected:
+	void wheelEvent(QWheelEvent *event) override { event->ignore(); }
+};
+
 class Panel final : public QWidget {
 	QLineEdit *executable, *path, *url, *mdnsName, *ipUrl;
 	QSpinBox *httpPort, *icePort, *viewerPort, *bitrate, *width, *height;
@@ -877,7 +882,7 @@ public:
 		path = new QLineEdit("mystream");
 		form->addRow(I18n::text("StreamName"), path);
 		auto spin = [form](const QString &label, int min, int max, int value) {
-			auto *s = new QSpinBox;
+			auto *s = new ScrollSafeSpinBox;
 			s->setRange(min, max);
 			s->setValue(value);
 			form->addRow(label, s);
@@ -894,14 +899,14 @@ public:
 		mdnsName = new QLineEdit;
 		mdnsName->setMaxLength(63);
 		form->addRow(I18n::text("HostName"), mdnsName);
-		networkInterface = new QComboBox;
+		networkInterface = new ScrollSafeComboBox;
 		networkInterface->addItem(I18n::text("AutoInterface"), 0);
 		for (const auto &iface : MdnsPublisher::interfaces())
 			networkInterface->addItem(iface.humanReadableName() + " · " +
 							  MdnsPublisher::addressFor(iface).toString(),
 						  iface.index());
 		form->addRow(I18n::text("LinkInterface"), networkInterface);
-		encoder = new QComboBox;
+		encoder = new ScrollSafeComboBox;
 		encoder->addItem("x264 (CPU)", "obs_x264");
 		encoder->addItem("NVIDIA NVENC H.264", "obs_nvenc_h264_tex");
 		form->addRow(I18n::text("Encoder"), encoder);
@@ -910,7 +915,7 @@ public:
 		height = spin(I18n::text("Height"), 90, 4320, 720);
 		width->setSingleStep(2);
 		height->setSingleStep(2);
-		resolutionMode = new QComboBox;
+		resolutionMode = new ScrollSafeComboBox;
 		resolutionMode->addItem(I18n::text("AutoResolution"), "obs");
 		resolutionMode->addItem(I18n::text("Custom"), "custom");
 		form->insertRow(form->rowCount() - 2, I18n::text("Resolution"), resolutionMode);
@@ -923,7 +928,7 @@ public:
 		playerBackground = new QLineEdit("#111111");
 		playerBackground->setMaxLength(7);
 		playerForm->addRow(I18n::text("PlayerBackground"), playerBackground);
-		playerFit = new QComboBox;
+		playerFit = new ScrollSafeComboBox;
 		playerFit->addItem(I18n::text("FitContain"), "contain");
 		playerFit->addItem(I18n::text("FitCover"), "cover");
 		playerForm->addRow(I18n::text("PlayerFit"), playerFit);
@@ -954,11 +959,11 @@ public:
 		monitorEnabled = new QCheckBox(I18n::text("MonitorEnabled"));
 		monitorEnabled->setChecked(true);
 		monitorForm->addRow(monitorEnabled);
-		monitorPort = new QSpinBox;
+		monitorPort = new ScrollSafeSpinBox;
 		monitorPort->setRange(1024, 65535);
 		monitorPort->setValue(9997);
 		monitorForm->addRow(I18n::text("MonitorPort"), monitorPort);
-		statsInterval = new QSpinBox;
+		statsInterval = new ScrollSafeSpinBox;
 		statsInterval->setRange(1, 30);
 		statsInterval->setValue(2);
 		statsInterval->setSuffix(" s");
@@ -969,7 +974,7 @@ public:
 		form->addRow(saveStatus);
 		resolutionInfo = new QLabel;
 		layout->addWidget(resolutionInfo);
-		protocol = new QComboBox;
+		protocol = new ScrollSafeComboBox;
 		protocol->addItem("WebRTC", "webrtc");
 		auto *protocolForm = new QFormLayout;
 		protocolForm->addRow(I18n::text("StreamType"), protocol);

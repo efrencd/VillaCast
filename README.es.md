@@ -29,15 +29,15 @@ Villaverde, en Fuerteventura, Islas Canarias**.
 
 ## Descargar e instalar — Windows x64
 
-Versión actual: **0.8.1**, una versión inicial. Descarga desde
+Versión actual: **0.8.2**, una versión inicial. Descarga desde
 [GitHub Releases](https://github.com/efrencd/VillaCast/releases/latest):
 
 | Archivo | Uso |
 | --- | --- |
-| `VillaCast-0.8.1-windows-x64-es-ES.msi` | Instalador con asistente en español |
-| `VillaCast-0.8.1-windows-x64-en-US.msi` | Instalador con asistente en inglés |
-| `VillaCast-0.8.1-windows-x64-portable.zip` | Archivos del plugin y script de instalación |
-| `VillaCast-0.8.1-windows-x64-SHA256SUMS.txt` | Sumas SHA-256 para comprobar las descargas |
+| `VillaCast-0.8.2-windows-x64-es-ES.msi` | Instalador con asistente en español |
+| `VillaCast-0.8.2-windows-x64-en-US.msi` | Instalador con asistente en inglés |
+| `VillaCast-0.8.2-windows-x64-portable.zip` | Archivos del plugin y script de instalación |
+| `VillaCast-0.8.2-windows-x64-SHA256SUMS.txt` | Sumas SHA-256 para comprobar las descargas |
 
 Ambos MSI incluyen el mismo plugin bilingüe: **instala solo uno**. Cierra OBS, ejecuta
 el instalador con permisos de administrador y vuelve a abrir OBS. Activa

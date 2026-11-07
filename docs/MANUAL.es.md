@@ -1,4 +1,4 @@
-# VillaCast 0.8.1 — Manual de uso
+# VillaCast 0.8.2 — Manual de uso
 
 [English](MANUAL.en.md) · [Proyecto](../README.es.md) · [Descargas](https://github.com/efrencd/VillaCast/releases/latest)
 
@@ -32,7 +32,9 @@ se indica el error; corrígelo al formato `#RRGGBB`. **Recarga las páginas abie
 para aplicar cambios del reproductor. Detén VillaCast para cambiar red/codificación;
 los controles bloqueados se habilitan al detenerlo.
 
-No hay un control de FPS independiente: se utilizan los de **Ajustes de OBS → Vídeo →
+La rueda desplaza el panel sin modificar campos numéricos ni desplegables cerrados,
+incluso si tienen el foco. Para cambiar valores utiliza las flechas, el teclado o
+abre el desplegable y selecciona una opción. No hay un control de FPS independiente: se utilizan los de **Ajustes de OBS → Vídeo →
 FPS**. Cámbialos con las salidas de OBS detenidas. Se usa español si OBS o el idioma
 principal del sistema están en español; en otro caso, inglés. La detección se realiza
 al abrir OBS. Los mensajes de MediaMTX y del sistema conservan su idioma original.
