@@ -1,5 +1,7 @@
 # VillaCast
 
+Añade `?audio=1` al enlace del reproductor para recibir solo el audio del programa.
+
 <img src="data/villacast.png" width="128" alt="Logo VillaCast: vídeo distribuido a pantallas en red">
 
 **Convierte OBS en un canal de televisión en directo para tu red local.**
@@ -29,15 +31,15 @@ Villaverde, en Fuerteventura, Islas Canarias**.
 
 ## Descargar e instalar — Windows x64
 
-Versión actual: **0.8.2**, una versión inicial. Descarga desde
+Versión actual: **0.8.3**, una versión inicial. Descarga desde
 [GitHub Releases](https://github.com/efrencd/VillaCast/releases/latest):
 
 | Archivo | Uso |
 | --- | --- |
-| `VillaCast-0.8.2-windows-x64-es-ES.msi` | Instalador con asistente en español |
-| `VillaCast-0.8.2-windows-x64-en-US.msi` | Instalador con asistente en inglés |
-| `VillaCast-0.8.2-windows-x64-portable.zip` | Archivos del plugin y script de instalación |
-| `VillaCast-0.8.2-windows-x64-SHA256SUMS.txt` | Sumas SHA-256 para comprobar las descargas |
+| `VillaCast-0.8.3-windows-x64-es-ES.msi` | Instalador con asistente en español |
+| `VillaCast-0.8.3-windows-x64-en-US.msi` | Instalador con asistente en inglés |
+| `VillaCast-0.8.3-windows-x64-portable.zip` | Archivos del plugin y script de instalación |
+| `VillaCast-0.8.3-windows-x64-SHA256SUMS.txt` | Sumas SHA-256 para comprobar las descargas |
 
 Ambos MSI incluyen el mismo plugin bilingüe: **instala solo uno**. Cierra OBS, ejecuta
 el instalador con permisos de administrador y vuelve a abrir OBS. Activa

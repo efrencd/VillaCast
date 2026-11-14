@@ -1,4 +1,6 @@
-# VillaCast 0.8.2 — Manual de uso
+# VillaCast 0.8.3 — Manual de uso
+
+Para escuchar solo el audio del programa, añade `?audio=1` al enlace, por ejemplo `http://estudio:8000/?audio=1`. Pulsa el control de sonido si el navegador requiere un toque.
 
 [English](MANUAL.en.md) · [Proyecto](../README.es.md) · [Descargas](https://github.com/efrencd/VillaCast/releases/latest)
 

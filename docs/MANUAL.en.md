@@ -1,4 +1,6 @@
-# VillaCast 0.8.2 — User manual
+# VillaCast 0.8.3 — User manual
+
+For audio only, add `?audio=1` to the viewer link, for example `http://studio:8000/?audio=1`. Tap the sound control if the browser asks for a gesture.
 
 [Español](MANUAL.es.md) · [Project](../README.md) · [Downloads](https://github.com/efrencd/VillaCast/releases/latest)
 
