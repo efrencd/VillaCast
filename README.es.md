@@ -1,6 +1,6 @@
 # VillaCast
 
-Añade `?audio=1` al enlace del reproductor para recibir solo el audio del programa.
+Añade `?audio_track=1` al enlace para escuchar el audio del programa. Para escuchar otra mezcla, habilita su pista (2 a 6) en **Ajustes → Pistas de audio adicionales** antes de iniciar VillaCast y abre, por ejemplo, `http://estudio:8000/?audio_track=2`. Asigna las fuentes de cada pista en **Propiedades avanzadas de audio** de OBS. Las pistas habilitadas se publican al iniciar la emisión y están disponibles para quien pueda acceder al reproductor.
 
 <img src="data/villacast.png" width="128" alt="Logo VillaCast: vídeo distribuido a pantallas en red">
 
@@ -31,15 +31,15 @@ Villaverde, en Fuerteventura, Islas Canarias**.
 
 ## Descargar e instalar — Windows x64
 
-Versión actual: **0.8.3**, una versión inicial. Descarga desde
+Versión actual: **0.8.4**, una versión inicial. Descarga desde
 [GitHub Releases](https://github.com/efrencd/VillaCast/releases/latest):
 
 | Archivo | Uso |
 | --- | --- |
-| `VillaCast-0.8.3-windows-x64-es-ES.msi` | Instalador con asistente en español |
-| `VillaCast-0.8.3-windows-x64-en-US.msi` | Instalador con asistente en inglés |
-| `VillaCast-0.8.3-windows-x64-portable.zip` | Archivos del plugin y script de instalación |
-| `VillaCast-0.8.3-windows-x64-SHA256SUMS.txt` | Sumas SHA-256 para comprobar las descargas |
+| `VillaCast-0.8.4-windows-x64-es-ES.msi` | Instalador con asistente en español |
+| `VillaCast-0.8.4-windows-x64-en-US.msi` | Instalador con asistente en inglés |
+| `VillaCast-0.8.4-windows-x64-portable.zip` | Archivos del plugin y script de instalación |
+| `VillaCast-0.8.4-windows-x64-SHA256SUMS.txt` | Sumas SHA-256 para comprobar las descargas |
 
 Ambos MSI incluyen el mismo plugin bilingüe: **instala solo uno**. Cierra OBS, ejecuta
 el instalador con permisos de administrador y vuelve a abrir OBS. Activa

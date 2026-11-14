@@ -38,6 +38,7 @@ target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
     src/plugin-main.cpp
+    src/audio-track-output.cpp
     src/platform.cpp
     src/platform.hpp
     src/mdns.cpp

@@ -29,7 +29,9 @@ button:focus-visible,input:focus-visible{outline:3px solid #94bfff}
 (() => {
   const cfg = __PLAYER_OPTIONS__;
   const tr = (es,en) => document.documentElement.lang === 'es' ? es : en;
-  const audioOnly = new URLSearchParams(location.search).get('audio') === '1';
+  const audioTrack = new URLSearchParams(location.search).get('audio_track');
+  const audioOnly = audioTrack !== null;
+  const trackAvailable = audioTrack === '1' || (/^[2-6]$/.test(audioTrack) && Object.hasOwn(cfg.audioTracks ?? {}, audioTrack));
   const videoElement = document.querySelector('#video');
   const media = audioOnly ? document.createElement('audio') : videoElement;
   const status = document.querySelector('#status');
@@ -40,7 +42,8 @@ button:focus-visible,input:focus-visible{outline:3px solid #94bfff}
   if (audioOnly) {
     videoElement.replaceWith(media);
     const banner = document.querySelector('#audio-mode');
-    banner.querySelector('span').textContent = tr('Solo audio', 'Audio only');
+    banner.querySelector('span').textContent = trackAvailable ? tr('Pista de audio ', 'Audio track ') + audioTrack :
+      tr('Pista de audio no disponible', 'Audio track unavailable');
     banner.hidden = false;
     fullscreen.hidden = true;
   }
@@ -76,7 +79,10 @@ button:focus-visible,input:focus-visible{outline:3px solid #94bfff}
   controls.addEventListener('pointerleave',armHideControls);
   controls.addEventListener('focusin',revealControls);
   controls.addEventListener('focusout',event=>{if(!controls.contains(event.relatedTarget))keyboardControls=false;armHideControls();});
-  const endpoint=new URL(location.href);endpoint.port=__WEBRTC_PORT__;endpoint.pathname='/__STREAM_PATH__/whep';endpoint.search='';endpoint.hash='';
+  if (audioOnly && !trackAvailable) return;
+  const streamPath = audioOnly && audioTrack !== '1' ? cfg.audioTracks[audioTrack] : '__STREAM_PATH__';
+  const endpoint = new URL('/' + streamPath + '/whep', location.href);
+  endpoint.port = __WEBRTC_PORT__;
   let pc=null,controller=null,resource=null,retry=null,generation=0,closing=false,connecting=false,connectedAt=0;
   let lastMediaProgress=-1,lastProgress=performance.now(),hasStarted=false,playPending=false,resumeTimer=null,needsSoundGesture=audioOnly&&!cfg.sound;
   let clientId=null,reportToken=null,registration=null,reporting=false,previousStats=null;

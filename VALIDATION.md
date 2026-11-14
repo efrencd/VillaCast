@@ -1,3 +1,9 @@
+# Local validation — VillaCast 0.8.4
+
+- Build and CTest passed (3/3).
+- Portable OBS and MediaMTX 1.21.3 published a synthetic tone assigned only to mix 2. Chrome received a nonzero audio signal and zero video tracks at `?audio_track=2`.
+- Track 1 returned audio only, disabled track 3 displayed an unavailable message, and the regular link played at 1280 px width with both media tracks.
+
 # Local validation — VillaCast 0.8.2 (2026-11-07)
 
 - All numeric settings use wheel-safe spin boxes; all selectors use wheel-safe combo boxes.

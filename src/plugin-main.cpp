@@ -59,6 +59,9 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <algorithm>
+#include <array>
+
+void registerAudioTrackOutput();
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-mediamtx", "en-US")
@@ -106,6 +109,9 @@ class Panel final : public QWidget {
 	QString directory;
 	obs_output_t *output = nullptr;
 	obs_service_t *service = nullptr;
+	std::array<QCheckBox *, MAX_AUDIO_MIXES - 1> audioTrackChecks{};
+	std::array<quint16, MAX_AUDIO_MIXES - 1> audioTrackPorts{};
+	std::array<obs_output_t *, MAX_AUDIO_MIXES - 1> audioTrackOutputs{};
 	obs_encoder_t *video = nullptr, *audio = nullptr;
 	bool stoppingServer = false;
 	QString serverBuffer, packageBuffer;
@@ -175,9 +181,17 @@ class Panel final : public QWidget {
 		return "—";
 	}
 
+	QString audioTrackPath(size_t index) const { return path->text() + QString("-audio-%1").arg(index + 2); }
+
 	QJsonObject playerOptions() const
 	{
-		return {{"title",
+		QJsonObject tracks;
+		for (size_t i = 0; i < audioTrackChecks.size(); ++i) {
+			if (audioTrackChecks[i]->isChecked())
+				tracks.insert(QString::number(i + 2), audioTrackPath(i));
+		}
+		return {{"audioTracks", tracks},
+			{"title",
 			 playerTitle->text().trimmed().isEmpty() ? "VillaCast" : playerTitle->text().trimmed()},
 			{"background", playerBackground->text().trimmed()},
 			{"fit", playerFit->currentData().toString()},
@@ -367,6 +381,8 @@ class Panel final : public QWidget {
 		s.setValue("networkInterface", networkInterface->currentData());
 		s.setValue("playerOptions", QJsonDocument(playerOptions()).toJson(QJsonDocument::Compact));
 		s.setValue("monitorPort", monitorPort->value());
+		for (size_t i = 0; i < audioTrackChecks.size(); ++i)
+			s.setValue(QString("audioTrack%1").arg(i + 2), audioTrackChecks[i]->isChecked());
 	}
 	QString findExecutable() { return Platform::findMediaMtx(executable->text().trimmed()); }
 	QSize effectiveResolution() const
@@ -440,6 +456,8 @@ class Panel final : public QWidget {
 			QString("http://%1:%2/").arg(advertised.isEmpty() ? host : advertised).arg(viewerPort->value()));
 		mdnsStatus->setText(lan->isChecked() && mdnsEnabled->isChecked() ? mdns.description()
 										 : I18n::text("MdnsDisabled"));
+		for (auto *track : audioTrackChecks)
+			track->setEnabled(idle);
 		monitorEnabled->setEnabled(idle);
 		monitorPort->setEnabled(idle && monitorEnabled->isChecked());
 		statsInterval->setEnabled(idle && monitorEnabled->isChecked());
@@ -516,6 +534,27 @@ class Panel final : public QWidget {
 				.arg(lan->isChecked()
 					     ? "[127.0.0.1, '::1', 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 'fe80::/10', 'fc00::/7']"
 					     : "[127.0.0.1, '::1']");
+		std::array<QUdpSocket, MAX_AUDIO_MIXES - 1> reservations;
+		audioTrackPorts.fill(0);
+		for (size_t i = 0; i < audioTrackChecks.size(); ++i) {
+			if (!audioTrackChecks[i]->isChecked())
+				continue;
+			if (!reservations[i].bind(QHostAddress::LocalHost, 0, QUdpSocket::DontShareAddress)) {
+				log(I18n::text("PortBusy"));
+				return false;
+			}
+			const auto port = reservations[i].localPort();
+			audioTrackPorts[i] = port;
+			const auto trackPath = audioTrackPath(i);
+			config.insert(config.indexOf("\npaths:\n") + 1,
+				      QString("      - action: read\n        path: %1\n").arg(trackPath));
+			config += QString("  %1:\n    source: udp+rtp://127.0.0.1:%2\n"
+					  "    rtpSDP: |\n      v=0\n      o=- 0 0 IN IP4 127.0.0.1\n"
+					  "      s=VillaCast\n      c=IN IP4 127.0.0.1\n      t=0 0\n"
+					  "      m=audio %2 RTP/AVP 111\n      a=rtpmap:111 opus/48000/2\n")
+					  .arg(trackPath)
+					  .arg(port);
+		}
 		// Disable newer protocols only on versions that support them. Minimum supported server: 1.21.
 		config += "moq: false\nplayback: false\n";
 		if (monitorEnabled->isChecked()) {
@@ -689,8 +728,46 @@ class Panel final : public QWidget {
 			},
 			Qt::QueuedConnection);
 	}
+	void stopAudioTracks()
+	{
+		for (auto *&trackOutput : audioTrackOutputs) {
+			if (!trackOutput)
+				continue;
+			obs_output_release(trackOutput);
+			trackOutput = nullptr;
+		}
+	}
+
+	bool startAudioTracks()
+	{
+		for (size_t i = 0; i < audioTrackPorts.size(); ++i) {
+			if (!audioTrackPorts[i])
+				continue;
+			const auto name = QString("VillaCast audio %1").arg(i + 2).toUtf8();
+			auto *settings = obs_data_create();
+			obs_data_set_int(settings, "port", audioTrackPorts[i]);
+			auto *trackOutput =
+				obs_output_create("villacast_audio_rtp", name.constData(), settings, nullptr);
+			obs_data_release(settings);
+			if (!trackOutput)
+				return false;
+			audioTrackOutputs[i] = trackOutput;
+			auto *trackEncoder =
+				obs_audio_encoder_create("ffmpeg_opus", name.constData(), nullptr, i + 1, nullptr);
+			if (!trackEncoder)
+				return false;
+			obs_encoder_set_audio(trackEncoder, obs_get_audio());
+			obs_output_set_audio_encoder(trackOutput, trackEncoder, 0);
+			obs_encoder_release(trackEncoder);
+			if (!obs_output_start(trackOutput))
+				return false;
+		}
+		return true;
+	}
+
 	void releaseOutput()
 	{
+		stopAudioTracks();
 		outputConnected = false;
 		if (output) {
 			auto *signalHandler = obs_output_get_signal_handler(output);
@@ -766,6 +843,11 @@ class Panel final : public QWidget {
 		obs_output_set_video_encoder(output, video);
 		obs_output_set_audio_encoder(output, audio, 0);
 		obs_output_set_service(output, service);
+		if (!startAudioTracks()) {
+			releaseOutput();
+			failSession(I18n::text("AudioTrackFailed"));
+			return;
+		}
 		auto *signalHandler = obs_output_get_signal_handler(output);
 		signal_handler_connect(signalHandler, "start", onOutputStart, this);
 		signal_handler_connect(signalHandler, "stop", onOutputStop, this);
@@ -953,6 +1035,17 @@ public:
 		playerHelp->setWordWrap(true);
 		playerForm->addRow(playerHelp);
 		form->addRow(playerGroup);
+		auto *tracksGroup = new QGroupBox(I18n::text("AudioTracks"));
+		auto *tracksLayout = new QVBoxLayout(tracksGroup);
+		auto *tracksHelp = new QLabel(I18n::text("AudioTracksHelp"));
+		tracksHelp->setWordWrap(true);
+		tracksLayout->addWidget(tracksHelp);
+		for (size_t i = 0; i < audioTrackChecks.size(); ++i) {
+			auto *track = new QCheckBox(I18n::text("AudioTrack").arg(i + 2));
+			audioTrackChecks[i] = track;
+			tracksLayout->addWidget(track);
+		}
+		form->addRow(tracksGroup);
 		auto *monitorGroup = new QGroupBox(I18n::text("Clients"));
 		auto *monitorForm = new QFormLayout(monitorGroup);
 		monitorForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
@@ -1055,6 +1148,11 @@ public:
 		monitorEnabled->setChecked(savedPlayer.value("monitor").toBool(true));
 		statsInterval->setValue(savedPlayer.value("statsInterval").toInt(2));
 		monitorPort->setValue(s.value("monitorPort", 9997).toInt());
+		for (size_t i = 0; i < audioTrackChecks.size(); ++i) {
+			auto *track = audioTrackChecks[i];
+			track->setChecked(s.value(QString("audioTrack%1").arg(i + 2), false).toBool());
+			connect(track, &QCheckBox::toggled, this, [this] { save(); });
+		}
 		connect(monitorEnabled, &QCheckBox::toggled, this, [this] { refresh(); });
 		autoStart->setChecked(s.value("autoStart", false).toBool());
 		connect(autoStart, &QCheckBox::toggled, this, [this] { save(); });
@@ -1273,6 +1371,7 @@ void frontendEvent(enum obs_frontend_event event, void *)
 
 bool obs_module_load(void)
 {
+	registerAudioTrackOutput();
 	obs_frontend_add_event_callback(frontendEvent, nullptr);
 	return true;
 }

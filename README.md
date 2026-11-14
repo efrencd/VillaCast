@@ -1,6 +1,6 @@
 # VillaCast
 
-Add `?audio=1` to the player URL to receive only the program audio.
+Append `?audio_track=1` to the viewer link for program audio. To hear another mix, enable its track (2–6) under **Settings → Additional audio tracks** before starting VillaCast and open, for example, `http://studio:8000/?audio_track=2`. Assign sources to tracks in OBS **Advanced Audio Properties**. Enabled tracks are published at startup and available to anyone with access to the viewer.
 
 <img src="data/villacast.png" width="128" alt="VillaCast logo: video distributed to networked screens">
 
@@ -31,15 +31,15 @@ Canary Islands**, by **Efren C.D.**
 
 ## Download and install — Windows x64
 
-Current version: **0.8.3**, an early release. Download from
+Current version: **0.8.4**, an early release. Download from
 [GitHub Releases](https://github.com/efrencd/VillaCast/releases/latest):
 
 | File | Purpose |
 | --- | --- |
-| `VillaCast-0.8.3-windows-x64-en-US.msi` | Installer with an English wizard |
-| `VillaCast-0.8.3-windows-x64-es-ES.msi` | Installer with a Spanish wizard |
-| `VillaCast-0.8.3-windows-x64-portable.zip` | Extracted plugin files and installation script |
-| `VillaCast-0.8.3-windows-x64-SHA256SUMS.txt` | SHA-256 download checksums |
+| `VillaCast-0.8.4-windows-x64-en-US.msi` | Installer with an English wizard |
+| `VillaCast-0.8.4-windows-x64-es-ES.msi` | Installer with a Spanish wizard |
+| `VillaCast-0.8.4-windows-x64-portable.zip` | Extracted plugin files and installation script |
+| `VillaCast-0.8.4-windows-x64-SHA256SUMS.txt` | SHA-256 download checksums |
 
 Both MSI files contain the same bilingual plugin: **install only one**. Close OBS,
 run the installer with administrator rights, reopen OBS and select **Docks → VillaCast**.

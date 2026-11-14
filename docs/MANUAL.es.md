@@ -1,6 +1,6 @@
-# VillaCast 0.8.3 — Manual de uso
+# VillaCast 0.8.4 — Manual de uso
 
-Para escuchar solo el audio del programa, añade `?audio=1` al enlace, por ejemplo `http://estudio:8000/?audio=1`. Pulsa el control de sonido si el navegador requiere un toque.
+Añade `?audio_track=1` al enlace para escuchar el audio del programa. Para escuchar otra mezcla, habilita su pista (2 a 6) en **Ajustes → Pistas de audio adicionales** antes de iniciar VillaCast y abre, por ejemplo, `http://estudio:8000/?audio_track=2`. Asigna las fuentes de cada pista en **Propiedades avanzadas de audio** de OBS. Las pistas habilitadas se publican al iniciar la emisión y están disponibles para quien pueda acceder al reproductor.
 
 [English](MANUAL.en.md) · [Proyecto](../README.es.md) · [Descargas](https://github.com/efrencd/VillaCast/releases/latest)
 
